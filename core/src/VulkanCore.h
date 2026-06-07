@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Swapchain.h"
 #include "VulkanContext.h"
 
 namespace lab {
@@ -11,5 +12,6 @@ namespace lab {
 
         private:
         VulkanContext m_VulkanCtx;
+        Swapchain m_Swapchain;
     };
 }

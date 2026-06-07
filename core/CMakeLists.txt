@@ -29,8 +29,8 @@ endif()
 add_library(rendering_core STATIC
     external/tinyobj/tiny_obj_loader.cc
     src/VulkanCore.cpp
-    # src/VulkanContext.cpp
-    # src/Swapchain.cpp
+    src/VulkanContext.cpp
+    src/Swapchain.cpp
 )
 
 target_include_directories(rendering_core

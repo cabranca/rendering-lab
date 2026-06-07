@@ -3,7 +3,7 @@
  */
 
 #include "VulkanCore.h"
-#define VOLK_IMPLEMENTATION
+
 #include <vulkan/vulkan.h>
 #include <volk/volk.h>
 #include <SDL3/SDL.h>
@@ -13,7 +13,7 @@
 #include <string>
 #include <iostream>
 #include <filesystem>
-#define VMA_IMPLEMENTATION
+
 #include <vma/vk_mem_alloc.h>
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -52,10 +52,11 @@ namespace lab {
 		}
 
 		m_VulkanCtx.init();
-		
+		m_Swapchain.init(m_VulkanCtx);
 	}
 
 	void VulkanCore::shutdown() {
+		m_Swapchain.shutdown(m_VulkanCtx);
 		m_VulkanCtx.shutdown();
 	}
 }
@@ -66,18 +67,15 @@ uint32_t frameIndex{ 0 };
 VkInstance instance{ VK_NULL_HANDLE };
 VkDevice device{ VK_NULL_HANDLE };
 VkQueue queue{ VK_NULL_HANDLE };
-VkSurfaceKHR surface{ VK_NULL_HANDLE };
+
 bool updateSwapchain{ false };
-VkSwapchainKHR swapchain{ VK_NULL_HANDLE };
+
 VkCommandPool commandPool{ VK_NULL_HANDLE };
 VkPipeline pipeline{ VK_NULL_HANDLE };
 VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
-VkImage depthImage;
+
 VmaAllocator allocator{ VK_NULL_HANDLE };
-VmaAllocation depthImageAllocation;
-VkImageView depthImageView;
-std::vector<VkImage> swapchainImages;
-std::vector<VkImageView> swapchainImageViews;
+
 std::array<VkCommandBuffer, maxFramesInFlight> commandBuffers;
 std::array<VkFence, maxFramesInFlight> fences;
 std::array<VkSemaphore, maxFramesInFlight> imageAcquiredSemaphores;
@@ -123,79 +121,15 @@ struct Vertex {
 int main(int argc, char* argv[])
 {
 	
-	
-	// Window and surface
-	SDL_Window* window = SDL_CreateWindow("How to Vulkan", 1280u, 720u, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
-	assert(window);
-	chk(SDL_Vulkan_CreateSurface(window, instance, nullptr, &surface));
-	chk(SDL_GetWindowSize(window, &windowSize.x, &windowSize.y));
-	VkSurfaceCapabilitiesKHR surfaceCaps{};
-	chk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(devices[deviceIndex], surface, &surfaceCaps));
-	VkExtent2D swapchainExtent{ surfaceCaps.currentExtent };
-	if (surfaceCaps.currentExtent.width == 0xFFFFFFFF) {
-		swapchainExtent = { .width = static_cast<uint32_t>(windowSize.x), .height = static_cast<uint32_t>(windowSize.y) };
-	}
-	// Swap chain
-	const VkFormat imageFormat{ VK_FORMAT_B8G8R8A8_SRGB };
-	VkSwapchainCreateInfoKHR swapchainCI{
-		.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-		.surface = surface,
-		.minImageCount = surfaceCaps.minImageCount,
-		.imageFormat = imageFormat,
-		.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
-		.imageExtent{.width = swapchainExtent.width, .height = swapchainExtent.height },
-		.imageArrayLayers = 1,
-		.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-		.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-		.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-		.presentMode = VK_PRESENT_MODE_FIFO_KHR
-	};
-	chk(vkCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapchain));
-	uint32_t imageCount{ 0 };
-	chk(vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr));
-	swapchainImages.resize(imageCount);
-	chk(vkGetSwapchainImagesKHR(device, swapchain, &imageCount, swapchainImages.data()));
-	swapchainImageViews.resize(imageCount);
-	for (auto i = 0; i < imageCount; i++) {
-		VkImageViewCreateInfo viewCI{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, .image = swapchainImages[i], .viewType = VK_IMAGE_VIEW_TYPE_2D, .format = imageFormat, .subresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 } };
-		chk(vkCreateImageView(device, &viewCI, nullptr, &swapchainImageViews[i]));
-	}
-	// Depth attachment
-	std::vector<VkFormat> depthFormatList{ VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT };
-	VkFormat depthFormat{ VK_FORMAT_UNDEFINED };
-	for (VkFormat& format : depthFormatList) {
-		VkFormatProperties2 formatProperties{ .sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2 };
-		vkGetPhysicalDeviceFormatProperties2(devices[deviceIndex], format, &formatProperties);
-		if (formatProperties.formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
-			depthFormat = format;
-			break;
-		}
-	}
-	assert(depthFormat != VK_FORMAT_UNDEFINED);
-	VkImageCreateInfo depthImageCI{
-		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.imageType = VK_IMAGE_TYPE_2D,
-		.format = depthFormat,
-		.extent{.width = static_cast<uint32_t>(windowSize.x), .height = static_cast<uint32_t>(windowSize.y), .depth = 1},
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.tiling = VK_IMAGE_TILING_OPTIMAL,
-		.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-	};
-	VmaAllocationCreateInfo allocCI{ .flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT, .usage = VMA_MEMORY_USAGE_AUTO };
-	chk(vmaCreateImage(allocator, &depthImageCI, &allocCI, &depthImage, &depthImageAllocation, nullptr));
-	VkImageViewCreateInfo depthViewCI{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, .image = depthImage, .viewType = VK_IMAGE_VIEW_TYPE_2D, .format = depthFormat, .subresourceRange{.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT, .levelCount = 1, .layerCount = 1 } };
-	chk(vkCreateImageView(device, &depthViewCI, nullptr, &depthImageView));
 	// Mesh data
-	tinyobj::attrib_t attrib;
-	std::vector<tinyobj::shape_t> shapes;
-	std::vector<tinyobj::material_t> materials;
-	chk(tinyobj::LoadObj(&attrib, &shapes, &materials, nullptr, nullptr, "assets/suzanne.obj"));
-	const VkDeviceSize indexCount{ shapes[0].mesh.indices.size() };
-	std::vector<Vertex> vertices{};
-	std::vector<uint16_t> indices{};
+        tinyobj::attrib_t attrib;
+        std::vector<tinyobj::shape_t> shapes;
+        std::vector<tinyobj::material_t> materials;
+        chk(tinyobj::LoadObj(&attrib, &shapes, &materials, nullptr, nullptr, "assets/suzanne.obj"));
+        const VkDeviceSize indexCount{ shapes[0].mesh.indices.size() };
+        std::vector<Vertex> vertices{};
+        std::vector<uint16_t> indices{};
+	
 	// Load vertex and index data
 	for (auto& index : shapes[0].mesh.indices) {
 		Vertex v{
@@ -606,11 +540,7 @@ int main(int argc, char* argv[])
 	for (auto i = 0; i < renderCompleteSemaphores.size(); i++) {
 		vkDestroySemaphore(device, renderCompleteSemaphores[i], nullptr);
 	}
-	vmaDestroyImage(allocator, depthImage, depthImageAllocation);
-	vkDestroyImageView(device, depthImageView, nullptr);
-	for (auto i = 0; i < swapchainImageViews.size(); i++) {
-		vkDestroyImageView(device, swapchainImageViews[i], nullptr);
-	}
+	
 	vmaDestroyBuffer(allocator, vBuffer, vBufferAllocation);
 	for (auto i = 0; i < textures.size(); i++) {
 		vkDestroyImageView(device, textures[i].view, nullptr);
@@ -621,8 +551,7 @@ int main(int argc, char* argv[])
 	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 	vkDestroyPipeline(device, pipeline, nullptr);
-	vkDestroySwapchainKHR(device, swapchain, nullptr);
-	vkDestroySurfaceKHR(instance, surface, nullptr);
+	
 	vkDestroyCommandPool(device, commandPool, nullptr);
 	vkDestroyShaderModule(device, shaderModule, nullptr);
 	
