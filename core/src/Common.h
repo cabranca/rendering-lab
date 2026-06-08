@@ -4,9 +4,9 @@
 
 namespace lab {
 
-    struct Vertex {
-            glm::vec3 pos;
-            glm::vec3 normal;
-            glm::vec2 uv;
-        };
-}
+	struct Vertex {
+		glm::vec3 pos;
+		glm::vec3 normal;
+		glm::vec2 uv;
+	};
+} // namespace lab

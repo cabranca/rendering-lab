@@ -1,0 +1,19 @@
+---
+BasedOnStyle: LLVM
+Cpp11BracedListStyle: false
+ColumnLimit: 140
+UseTab: ForIndentation
+TabWidth: 4
+IndentWidth: 4
+AccessModifierOffset: -2
+PointerAlignment: Left # int* ptr (no int *ptr)
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+AlwaysBreakTemplateDeclarations: true
+SpaceBeforeRangeBasedForLoopColon: false
+NamespaceIndentation: All
+IndentCaseLabels: true
+ReflowComments: true
+SortIncludes: false
+FixNamespaceComments: true
