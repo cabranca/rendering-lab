@@ -31,11 +31,17 @@ add_library(rendering_core STATIC
     src/VulkanCore.cpp
     src/VulkanContext.cpp
     src/Swapchain.cpp
+    src/Window.cpp
+    src/ModelImporter.cpp
+    src/VertexBuffer.cpp
+    src/Buffer.cpp
+    src/Texture.cpp
+    src/ShaderCompiler.cpp
 )
 
 target_include_directories(rendering_core
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
     SYSTEM PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/external/tinyobj)
 

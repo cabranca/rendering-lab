@@ -20,4 +20,5 @@ function(add_demo NAME)
 endfunction()
 
 # One subdirectory per demo. Add new demos here.
+add_subdirectory(BindlessPhong)
 add_subdirectory(cubemap)
