@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <string_view>
 
 #include "vulkan/vulkan_core.h"
 #include "vma/vk_mem_alloc.h"
@@ -38,10 +39,18 @@ namespace lab {
 
 	  private:
 		VkInstance m_Instance{ VK_NULL_HANDLE };
+		VkDebugUtilsMessengerEXT m_DebugMessenger{ VK_NULL_HANDLE };
 		VkDevice m_Device{ VK_NULL_HANDLE };
 		VkPhysicalDevice m_PhysicalDevice{ VK_NULL_HANDLE };
 		VkQueue m_Queue{ VK_NULL_HANDLE };
 		uint32_t m_QueueFamily{ 0 };
 		VmaAllocator m_Allocator{ VK_NULL_HANDLE };
+
+		void initializeSDLAndVolk();
+		void createInstance(std::string_view applicationName);
+		void createDebugCallback();
+		void createPhysicalDevice();
+		void createLogicalDevice();
+		void createAllocator();
 	};
 } // namespace lab
