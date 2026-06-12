@@ -20,5 +20,8 @@ function(add_demo NAME)
 endfunction()
 
 # One subdirectory per demo. Add new demos here.
+add_subdirectory(InstanceDemo)
+add_subdirectory(PhysicalDeviceDemo)
 add_subdirectory(BindlessPhong)
 add_subdirectory(cubemap)
+add_subdirectory(GLSLShader)

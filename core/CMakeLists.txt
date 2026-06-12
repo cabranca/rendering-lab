@@ -28,15 +28,13 @@ endif()
 # ----------------------------------------------------------------------------
 add_library(rendering_core STATIC
     external/tinyobj/tiny_obj_loader.cc
-    src/VulkanCore.cpp
-    src/VulkanContext.cpp
-    src/Swapchain.cpp
     src/Window.cpp
     src/ModelImporter.cpp
-    src/VertexBuffer.cpp
-    src/Buffer.cpp
-    src/Texture.cpp
     src/ShaderCompiler.cpp
+    src/Core.cpp
+    src/Instance.cpp
+    src/PhysicalDevice.cpp
+    src/Utils.cpp
 )
 
 target_include_directories(rendering_core
@@ -51,7 +49,9 @@ target_link_libraries(rendering_core
         Vulkan::Vulkan
         ktx
         ${SDL_LIBRARY}
-        ${Slang_LIBRARY})
+        ${Slang_LIBRARY}
+        ${GLSL_LIBRARY}
+        ${GLSL_RESOURCE_LIMITS_LIBRARY})
 
 if (NOT WIN32)
     target_link_libraries(rendering_core PUBLIC glm::glm-header-only)

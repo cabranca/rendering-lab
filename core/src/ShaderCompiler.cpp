@@ -1,16 +1,77 @@
 #include "ShaderCompiler.h"
 
 #include <array>
+#include <fstream>
 #include <string>
 
 #include <volk/volk.h>
+#include "glslang/Include/glslang_c_shader_types.h"
 #include "slang/slang.h"
 #include "slang/slang-com-ptr.h"
 
+#include "glslang/include/glslang_c_interface.h"
+#include "glslang/Public/resource_limits_c.h"
+
 #include "Check.h"
-#include "VulkanContext.h"
+#include "vulkan/vulkan_core.h"
 
 namespace lab {
+
+	struct Shader {
+		std::vector<uint32_t> SPIRV;
+		VkShaderModule shaderModule = nullptr;
+
+		void initialize(glslang_program_t* program) {
+			size_t programSize = glslang_program_SPIRV_get_size(program);
+			SPIRV.resize(programSize);
+			glslang_program_SPIRV_get(program, SPIRV.data());
+		}
+	};
+
+	static bool compileShader(VkDevice device, glslang_stage_t stage, const char* pShaderCode, Shader& shaderModule) {
+		glslang_input_t input {
+			.language = GLSLANG_SOURCE_GLSL,
+			.stage = stage,
+			.client = GLSLANG_CLIENT_VULKAN,
+			.client_version = GLSLANG_TARGET_VULKAN_1_3,
+			.target_language = GLSLANG_TARGET_SPV,
+			.target_language_version = GLSLANG_TARGET_SPV_1_3,
+			.code = pShaderCode,
+			.default_version = 100,
+			.default_profile = GLSLANG_NO_PROFILE,
+			.force_default_version_and_profile = false,
+			.forward_compatible = false,
+			.messages = GLSLANG_MSG_DEFAULT_BIT,
+			.resource = glslang_default_resource()
+		};
+
+		glslang_shader_t* shader = glslang_shader_create(&input);
+
+		if (!glslang_shader_preprocess(shader, &input) || !glslang_shader_parse(shader, &input))
+			exit(1);
+
+		glslang_program_t* program = glslang_program_create();
+		glslang_program_add_shader(program, shader);
+
+		if (!glslang_program_link(program, GLSLANG_MSG_SPV_RULES_BIT | GLSLANG_MSG_VULKAN_RULES_BIT))
+			exit(1);
+
+		glslang_program_SPIRV_generate(program, stage);
+
+		shaderModule.initialize(program);
+
+		VkShaderModuleCreateInfo shaderCI {
+			.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+			.codeSize = shaderModule.SPIRV.size() * sizeof(uint32_t),
+			.pCode = shaderModule.SPIRV.data()
+		};
+		chk(vkCreateShaderModule(device, &shaderCI, nullptr, &shaderModule.shaderModule));
+
+		glslang_program_delete(program);
+		glslang_shader_delete(shader);
+
+		return shaderModule.SPIRV.size() > 0;
+	}
 
 	// The Slang global session is expensive to create, so build it once and reuse it.
 	static slang::IGlobalSession* getGlobalSession() {
@@ -22,33 +83,37 @@ namespace lab {
 		return globalSession.get();
 	}
 
-	VkShaderModule loadSlangShader(const VulkanContext& ctx, std::string_view path) {
-		slang::IGlobalSession* globalSession = getGlobalSession();
+	VkShaderModule loadGLSLShader(VkDevice device, std::string_view path) {
+		std::string shaderString;
+		std::ifstream f(path.data());
+		if (f.is_open()) {
+			std::string line;
+			while(std::getline(f, line)) {
+				shaderString.append(line);
+				shaderString.append("\n");
+			}
 
-		auto targets = std::to_array<slang::TargetDesc>({ { .format = SLANG_SPIRV, .profile = globalSession->findProfile("spirv_1_4") } });
-		auto options = std::to_array<slang::CompilerOptionEntry>(
-		    { { slang::CompilerOptionName::EmitSpirvDirectly, { slang::CompilerOptionValueKind::Int, 1 } } });
-		slang::SessionDesc sessionDesc{
-			.targets = targets.data(),
-			.targetCount = SlangInt(targets.size()),
-			.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR,
-			.compilerOptionEntries = options.data(),
-			.compilerOptionEntryCount = uint32_t(options.size()),
-		};
+			f.close();
+		}
 
-		Slang::ComPtr<slang::ISession> session;
-		globalSession->createSession(sessionDesc, session.writeRef());
+		glslang_stage_t stage;
+		if (path.ends_with(".vert"))
+			stage = GLSLANG_STAGE_VERTEX;
+		else if (path.ends_with(".frag"))
+			stage = GLSLANG_STAGE_FRAGMENT;
+		else
+			exit(1);
 
-		std::string pathStr(path);
-		Slang::ComPtr<slang::IModule> module{ session->loadModuleFromSource("shader", pathStr.c_str(), nullptr, nullptr) };
-		Slang::ComPtr<ISlangBlob> spirv;
-		module->getTargetCode(0, spirv.writeRef());
+		glslang_initialize_process();
 
-		VkShaderModuleCreateInfo shaderModuleCI{ .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-			                                     .codeSize = spirv->getBufferSize(),
-			                                     .pCode = static_cast<const uint32_t*>(spirv->getBufferPointer()) };
-		VkShaderModule shaderModule{};
-		chk(vkCreateShaderModule(ctx.getDevice(), &shaderModuleCI, nullptr, &shaderModule));
-		return shaderModule;
+		Shader shaderModule;
+		VkShaderModule res;
+
+		bool success = compileShader(device, stage, shaderString.c_str(), shaderModule);
+		if (success)
+			res = shaderModule.shaderModule;
+
+		glslang_finalize_process();
+		return res;
 	}
 } // namespace lab

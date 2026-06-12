@@ -34,8 +34,10 @@ if (NOT WIN32)
 endif()
 
 # SDL3 (windowing/input) and Slang (shader compiler) come from the SDK.
-find_library(SDL_LIBRARY   NAMES SDL3                  HINTS "$ENV{VULKAN_SDK}/lib" REQUIRED)
-find_library(Slang_LIBRARY NAMES slang slang-compiler  HINTS "$ENV{VULKAN_SDK}/lib" REQUIRED)
+find_library(SDL_LIBRARY   NAMES SDL3                                    HINTS "$ENV{VULKAN_SDK}/lib" REQUIRED)
+find_library(Slang_LIBRARY NAMES slang slang-compiler                    HINTS "$ENV{VULKAN_SDK}/lib" REQUIRED)
+find_library(GLSL_LIBRARY                  NAMES glslang                                 HINTS "$ENV{VULKAN_SDK}/lib" REQUIRED)
+find_library(GLSL_RESOURCE_LIMITS_LIBRARY  NAMES glslang-default-resource-limits         HINTS "$ENV{VULKAN_SDK}/lib" REQUIRED)
 
 # ----------------------------------------------------------------------------
 # Common compile settings shared by core and every demo
