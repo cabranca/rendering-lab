@@ -1,5 +1,6 @@
 #include "Core.h"
 
+#include <SDL3/SDL_vulkan.h>
 #include <volk/volk.h>
 
 #include "Check.h"
@@ -11,27 +12,34 @@ namespace lab {
 	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT Severity,
 	                                                    VkDebugUtilsMessageTypeFlagsEXT Type,
 	                                                    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
-		printf("Debug callback: %s\n", pCallbackData->pMessage);
-		printf("  Severity %s\n", GetDebugSeverityStr(Severity));
-		printf("  Type %s\n", GetDebugType(Type));
-		printf("  Objects ");
+		std::println("Debug callback: {}", pCallbackData->pMessage);
+		std::println("  Severity {}", GetDebugSeverityStr(Severity));
+		std::println("  Type {}", GetDebugType(Type));
+		std::println("  Objects ");
 
 		for (uint32_t i = 0; i < pCallbackData->objectCount; i++) {
-			printf("%llux ", pCallbackData->pObjects[i].objectHandle);
+			std::println("{}", pCallbackData->pObjects[i].objectHandle);
 		}
 
-		printf("\n");
+		std::println("");
 
 		return VK_FALSE; // The calling function should not be aborted
 	}
 
-	void Core::init(std::string_view appName) {
+	void Core::init(std::string_view appName, SDL_Window* window) {
 		m_Instance.init(appName);
 		createDebugCallback();
+		createSurface(window);
+		m_DeviceManager.init(m_Instance.getInstance(), m_Surface);
 	}
 
 	void Core::shutdown() {
+		vkDestroySurfaceKHR(m_Instance.getInstance(), m_Surface, nullptr);
+		std::println("SDL Surface destroyed");
+
 		vkDestroyDebugUtilsMessengerEXT(m_Instance.getInstance(), m_DebugMessenger, nullptr);
+		std::println("Debug messenger destroyed");
+
 		m_Instance.shutdown();
 	}
 
@@ -47,9 +55,13 @@ namespace lab {
 			.pUserData = NULL
 		};
 
-
 		chk(vkCreateDebugUtilsMessengerEXT(m_Instance.getInstance(), &MessengerCreateInfo, nullptr, &m_DebugMessenger));
 
-		printf("Debug utils messenger created\n");
+		std::println("Debug utils created");
+	}
+
+	void Core::createSurface(SDL_Window* window) {
+		chk(SDL_Vulkan_CreateSurface(window, m_Instance.getInstance(), nullptr, &m_Surface));
+		std::println("SDL Surface created");
 	}
 } // namespace lab

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <iostream>
+#include <print>
 
 #include "vulkan/vulkan_core.h"
 
@@ -10,14 +10,14 @@ namespace lab {
 	// can use the same check without an extra link dependency.
 	static inline void chk(VkResult result) {
 		if (result != VK_SUCCESS) {
-			std::cerr << "Vulkan call returned an error (" << result << ")\n";
+			std::println("Vulkan call returned an error ({})", static_cast<int>(result));
 			throw std::runtime_error("Vulkan call failed");
 		}
 	}
 
 	static inline void chk(bool result) {
 		if (!result) {
-			std::cerr << "Call returned an error\n";
+			std::println("Call returned an error ({})", result);
 			throw std::runtime_error("Call failed");
 		}
 	}

@@ -33,7 +33,7 @@ add_library(rendering_core STATIC
     src/ShaderCompiler.cpp
     src/Core.cpp
     src/Instance.cpp
-    src/PhysicalDevice.cpp
+    src/DeviceManager.cpp
     src/Utils.cpp
 )
 

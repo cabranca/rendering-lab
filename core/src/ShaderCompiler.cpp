@@ -1,8 +1,8 @@
 #include "ShaderCompiler.h"
 
-#include <array>
 #include <fstream>
 #include <string>
+#include <vector>
 
 #include <volk/volk.h>
 #include "glslang/Include/glslang_c_shader_types.h"

@@ -8,10 +8,13 @@ int main() {
 	SDL_Init(SDL_INIT_VIDEO);
 	std::cout << "SDL initialized\n";
 
+	auto* window = SDL_CreateWindow("InstanceDemo", 1600, 1900, SDL_WINDOW_RESIZABLE);
+
 	lab::Core core;
-	core.init("Instance Demo");
+	core.init("Instance Demo", window);
 
 	core.shutdown();
+	SDL_DestroyWindow(window); 
 	SDL_Quit();
 	std::cout << "SDL quitted\n";
 
