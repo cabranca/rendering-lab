@@ -2,6 +2,7 @@
 
 #include <SDL3/SDL_video.h>
 #include <string_view>
+#include <vulkan/vulkan_core.h>
 
 #include "DeviceManager.h"
 #include "Instance.h"
@@ -19,8 +20,10 @@ namespace lab {
 		VkSurfaceKHR m_Surface{ VK_NULL_HANDLE };
 		DeviceManager m_DeviceManager;
 		uint32_t m_QueueFamily{ 0 };
+		VkDevice m_Device{ VK_NULL_HANDLE };
 
 		void createDebugCallback();
 		void createSurface(SDL_Window* window);
+		void createDevice();
 	};
 } // namespace lab

@@ -1,6 +1,8 @@
 #include "Core.h"
 
 #include <SDL3/SDL_vulkan.h>
+#include <array>
+#include <print>
 #include <volk/volk.h>
 
 #include "Check.h"
@@ -31,9 +33,16 @@ namespace lab {
 		createDebugCallback();
 		createSurface(window);
 		m_DeviceManager.init(m_Instance.getInstance(), m_Surface);
+
+		VkQueueFlags QueueFlags = VK_QUEUE_GRAPHICS_BIT;
+		m_QueueFamily = m_DeviceManager.selectDevice(QueueFlags, true);
+		createDevice();
 	}
 
 	void Core::shutdown() {
+		vkDestroyDevice(m_Device, nullptr);
+		std::println("Vulkan Device destroyed");
+
 		vkDestroySurfaceKHR(m_Instance.getInstance(), m_Surface, nullptr);
 		std::println("SDL Surface destroyed");
 
@@ -47,8 +56,7 @@ namespace lab {
 		VkDebugUtilsMessengerCreateInfoEXT MessengerCreateInfo = {
 			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 			.pNext = NULL,
-			.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
-			                   VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+			.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
 			.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 			               VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
 			.pfnUserCallback = DebugCallback,
@@ -61,7 +69,43 @@ namespace lab {
 	}
 
 	void Core::createSurface(SDL_Window* window) {
-		chk(SDL_Vulkan_CreateSurface(window, m_Instance.getInstance(), nullptr, &m_Surface));
+		if (!SDL_Vulkan_CreateSurface(window, m_Instance.getInstance(), nullptr, &m_Surface)) {
+			std::println("SDL_Vulkan_CreateSurface failed: {}", SDL_GetError());
+			throw std::runtime_error("Failed to create Vulkan surface");
+		}
 		std::println("SDL Surface created");
+	}
+
+	void Core::createDevice() {
+		float qPriorities{ 0.f };
+		VkQueue queue;
+		VkDeviceQueueCreateInfo queueCI{ .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+			                             .queueFamilyIndex = m_QueueFamily,
+			                             .queueCount = 1,
+			                             .pQueuePriorities = &qPriorities };
+
+		std::array<const char*, 2> ext{ VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME };
+		VkPhysicalDeviceFeatures feat{ .geometryShader = true, .tessellationShader = true };
+
+		const auto& physicalDevice = m_DeviceManager.getSelectedDevice();
+		if (physicalDevice.Features.geometryShader != VK_TRUE) {
+			std::println("Geometry Shader not supported!");
+			exit(1);
+		}
+		if (physicalDevice.Features.tessellationShader != VK_TRUE) {
+			std::println("Tesselation Shader not supported!");
+			exit(1);
+		}
+
+		VkDeviceCreateInfo deviceCI{ .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+			                         .queueCreateInfoCount = 1,
+			                         .pQueueCreateInfos = &queueCI,
+			                         .enabledExtensionCount = ext.size(),
+			                         .ppEnabledExtensionNames = ext.data(),
+			                         .pEnabledFeatures = &feat };
+
+		chk(vkCreateDevice(physicalDevice.Device, &deviceCI, nullptr, &m_Device));
+		volkLoadDevice(m_Device);
+		std::println("Vulkan Device created");
 	}
 } // namespace lab

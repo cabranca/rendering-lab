@@ -9,7 +9,7 @@
 #include "slang/slang.h"
 #include "slang/slang-com-ptr.h"
 
-#include "glslang/include/glslang_c_interface.h"
+#include "glslang/Include/glslang_c_interface.h"
 #include "glslang/Public/resource_limits_c.h"
 
 #include "Check.h"

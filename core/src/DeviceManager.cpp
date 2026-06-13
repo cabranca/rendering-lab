@@ -14,7 +14,7 @@ namespace lab {
 		chk(vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data()));
 
 		for (size_t i = 0; i < deviceCount; i++) {
-			PhysicalDevice phDevice;
+			m_Devices.at(i).Device = devices.at(i);
 			vkGetPhysicalDeviceProperties(devices.at(i), &m_Devices[i].DeviceProperties);
 
 			std::println("Device name: {}", m_Devices.at(i).DeviceProperties.deviceName);
@@ -48,17 +48,21 @@ namespace lab {
 
 			uint32_t presentModesCount;
 			chk(vkGetPhysicalDeviceSurfacePresentModesKHR(devices.at(i), surface, &presentModesCount, nullptr));
-			m_Devices.at(i).presentModes.resize(presentModesCount);
-			chk(vkGetPhysicalDeviceSurfacePresentModesKHR(devices.at(i), surface, &presentModesCount, m_Devices.at(i).presentModes.data()));
+			m_Devices.at(i).PresentModes.resize(presentModesCount);
+			chk(vkGetPhysicalDeviceSurfacePresentModesKHR(devices.at(i), surface, &presentModesCount, m_Devices.at(i).PresentModes.data()));
 
 			vkGetPhysicalDeviceMemoryProperties(devices.at(i), &m_Devices.at(i).MemProps);
+
+			vkGetPhysicalDeviceFeatures(devices.at(i), &m_Devices.at(i).Features);
 		}
 	}
 
-	void DeviceManager::shutdown() {}
-
 	uint32_t DeviceManager::selectDevice(VkQueueFlags requiredQueueType, bool supportsPresent) {
 		for (uint32_t i = 0; i < m_Devices.size(); i++) {
+			// Skip software rasterizers (e.g. llvmpipe); we want real GPU hardware.
+			if (m_Devices.at(i).DeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU)
+				continue;
+
 			for (uint32_t j = 0; j < m_Devices.at(i).FamilyProperties.size(); j++) {
 				const auto& qFamProp = m_Devices.at(i).FamilyProperties.at(j);
 				if ((qFamProp.queueFlags & requiredQueueType) &&
@@ -74,7 +78,7 @@ namespace lab {
 		return 0;
 	}
 
-	VkPhysicalDevice DeviceManager::getSelectedDevice() const {
-		return m_Devices.at(m_SelectedIndex).Device;
+	const PhysicalDevice& DeviceManager::getSelectedDevice() const {
+		return m_Devices.at(m_SelectedIndex);
 	}
 } // namespace lab

@@ -8,6 +8,8 @@
 #include <volk/volk.h>
 #include <SDL3/SDL_vulkan.h>
 
+#include "Check.h"
+
 namespace lab {
 
 	void Instance::init(std::string_view appName) {
@@ -29,9 +31,8 @@ namespace lab {
 			                             .ppEnabledLayerNames = layers.data(),
 			                             .enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
 			                             .ppEnabledExtensionNames = extensions.data() };
-		auto result = vkCreateInstance(&instanceCI, nullptr, &m_Instance);
-		if (result == VK_SUCCESS)
-			std::cout << "Vulkan Instance created\n";
+		chk(vkCreateInstance(&instanceCI, nullptr, &m_Instance));
+		std::cout << "Vulkan Instance created\n";
 		volkLoadInstance(m_Instance);
 	}
 

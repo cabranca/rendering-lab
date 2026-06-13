@@ -13,16 +13,17 @@ namespace lab {
 		std::vector<VkSurfaceFormatKHR> SurfaceFormats;
 		VkSurfaceCapabilitiesKHR SurfaceCaps;
 		VkPhysicalDeviceMemoryProperties MemProps;
-		std::vector<VkPresentModeKHR> presentModes;
+		std::vector<VkPresentModeKHR> PresentModes;
+		VkPhysicalDeviceFeatures Features;
 	};
 
 	class DeviceManager {
 	  public:
 		void init(VkInstance instance, VkSurfaceKHR& surface);
-		void shutdown();
 
+		// Returns the queue family index (should be handled differently in the future)
 		uint32_t selectDevice(VkQueueFlags requiredQueueType, bool supportsPresent);
-		VkPhysicalDevice getSelectedDevice() const;
+		const PhysicalDevice& getSelectedDevice() const;
 
 	  private:
 		std::vector<PhysicalDevice> m_Devices;
