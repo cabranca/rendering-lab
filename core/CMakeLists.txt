@@ -35,6 +35,7 @@ add_library(rendering_core STATIC
     src/Instance.cpp
     src/DeviceManager.cpp
     src/Utils.cpp
+    src/Swapchain.cpp
 )
 
 target_include_directories(rendering_core
