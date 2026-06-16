@@ -28,18 +28,30 @@ namespace lab {
 		return VK_FALSE; // The calling function should not be aborted
 	}
 
+	Core::~Core() {
+		shutdown();
+	}
+
 	void Core::init(std::string_view appName, SDL_Window* window) {
 		m_Instance.init(appName);
 		createDebugCallback();
 		createSurface(window);
 		m_DeviceManager.init(m_Instance.getInstance(), m_Surface);
-
-		VkQueueFlags QueueFlags = VK_QUEUE_GRAPHICS_BIT;
-		m_QueueFamily = m_DeviceManager.selectDevice(QueueFlags, true);
+		m_QueueFamily = m_DeviceManager.selectDevice(VK_QUEUE_GRAPHICS_BIT, true);
 		createDevice();
+		m_Swapchain.init(m_Device, m_DeviceManager.getSelectedDevice(), m_Surface, m_QueueFamily);
+		createCommandPool();
+		m_Queue.init(m_Device, m_Swapchain.getSwapchain(), m_QueueFamily, 0);
 	}
 
 	void Core::shutdown() {
+		m_Queue.shutdown();
+
+		vkDestroyCommandPool(m_Device, m_CmdPool, nullptr);
+		std::println("Command Pool destroyed");
+
+		m_Swapchain.shutdown(m_Device);
+
 		vkDestroyDevice(m_Device, nullptr);
 		std::println("Vulkan Device destroyed");
 
@@ -50,6 +62,44 @@ namespace lab {
 		std::println("Debug messenger destroyed");
 
 		m_Instance.shutdown();
+	}
+
+	uint32_t Core::getNumImages() const {
+		return m_Swapchain.getNumImages();
+	}
+
+	VkImage Core::getImage(uint32_t index) const {
+		return m_Swapchain.getImage(index);
+	}
+
+	void Core::createCommandBuffers(uint32_t numImages, VkCommandBuffer* cmdBuffers) {
+		VkCommandBufferAllocateInfo cmdBufferAI {
+			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+			.commandPool = m_CmdPool,
+			.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+			.commandBufferCount = numImages
+		};
+
+		chk(vkAllocateCommandBuffers(m_Device, &cmdBufferAI, cmdBuffers));
+		std::println("Command Buffers allocated");
+	}
+
+	void Core::freeCommandBuffers(uint32_t bufferCount, const VkCommandBuffer* cmdBuffers) {
+		vkFreeCommandBuffers(m_Device, m_CmdPool, bufferCount, cmdBuffers);
+	}
+
+	Queue* Core::getQueue() {
+		return &m_Queue;
+	}
+
+	void Core::beginCommandBuffer(VkCommandBuffer buffer, VkCommandBufferUsageFlags flags) {
+		VkCommandBufferBeginInfo bufferBI{
+			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+			.flags = flags,
+			.pInheritanceInfo = nullptr
+		};
+
+		chk(vkBeginCommandBuffer(buffer, &bufferBI));
 	}
 
 	void Core::createDebugCallback() {
@@ -85,13 +135,13 @@ namespace lab {
 			                             .pQueuePriorities = &qPriorities };
 
 		std::array<const char*, 2> ext{ VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME };
-		VkPhysicalDeviceFeatures feat{ .geometryShader = true, .tessellationShader = true };
+		VkPhysicalDeviceFeatures feat{ /*.geometryShader = true, */.tessellationShader = true }; // Geometry shader not available in Macbook Air M5
 
 		const auto& physicalDevice = m_DeviceManager.getSelectedDevice();
-		if (physicalDevice.Features.geometryShader != VK_TRUE) {
-			std::println("Geometry Shader not supported!");
-			exit(1);
-		}
+		// if (physicalDevice.Features.geometryShader != VK_TRUE) {
+		// 	std::println("Geometry Shader not supported!");
+		// 	exit(1);
+		// }
 		if (physicalDevice.Features.tessellationShader != VK_TRUE) {
 			std::println("Tesselation Shader not supported!");
 			exit(1);
@@ -107,5 +157,16 @@ namespace lab {
 		chk(vkCreateDevice(physicalDevice.Device, &deviceCI, nullptr, &m_Device));
 		volkLoadDevice(m_Device);
 		std::println("Vulkan Device created");
+	}
+
+	void Core::createCommandPool() {
+		VkCommandPoolCreateInfo poolCI {
+			.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+			.flags = 0,
+			.queueFamilyIndex = m_QueueFamily
+		};
+
+		chk(vkCreateCommandPool(m_Device, &poolCI, nullptr, &m_CmdPool));
+		std::println("Command Pool created");
 	}
 } // namespace lab

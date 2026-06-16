@@ -6,13 +6,24 @@
 
 #include "DeviceManager.h"
 #include "Instance.h"
+#include "Queue.h"
+#include "Swapchain.h"
 
 namespace lab {
 
 	class Core {
 	  public:
+		~Core();
 		void init(std::string_view appName, SDL_Window* window); // NOT THE OWNER OF THE WINDOW
 		void shutdown();
+
+		uint32_t getNumImages() const;
+		VkImage getImage(uint32_t index) const;
+		void createCommandBuffers(uint32_t numImages, VkCommandBuffer* cmdBuffers);
+		void freeCommandBuffers(uint32_t bufferCount, const VkCommandBuffer* cmdBuffers);
+		Queue* getQueue();
+
+		static void beginCommandBuffer(VkCommandBuffer buffer, VkCommandBufferUsageFlags flags);
 
 	  private:
 		Instance m_Instance;
@@ -20,10 +31,14 @@ namespace lab {
 		VkSurfaceKHR m_Surface{ VK_NULL_HANDLE };
 		DeviceManager m_DeviceManager;
 		uint32_t m_QueueFamily{ 0 };
+		Queue m_Queue;
 		VkDevice m_Device{ VK_NULL_HANDLE };
+		Swapchain m_Swapchain;
+		VkCommandPool m_CmdPool;
 
 		void createDebugCallback();
 		void createSurface(SDL_Window* window);
 		void createDevice();
+		void createCommandPool();
 	};
 } // namespace lab
