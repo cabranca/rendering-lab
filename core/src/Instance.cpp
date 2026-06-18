@@ -16,7 +16,7 @@ namespace lab {
 		volkInitialize();
 		VkApplicationInfo appInfo{ .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 			                       .pApplicationName = appName.data(),
-			                       .apiVersion = VK_API_VERSION_1_0 };
+			                       .apiVersion = VK_API_VERSION_1_3 };
 
 		uint32_t extensionCount{ 0 };
 		auto* sdlExtensions = SDL_Vulkan_GetInstanceExtensions(&extensionCount);

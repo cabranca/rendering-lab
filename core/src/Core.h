@@ -17,11 +17,22 @@ namespace lab {
 		void init(std::string_view appName, SDL_Window* window); // NOT THE OWNER OF THE WINDOW
 		void shutdown();
 
+		VkDevice getDevice() const;
+		VkExtent2D getExtent() const;
 		uint32_t getNumImages() const;
 		VkImage getImage(uint32_t index) const;
 		void createCommandBuffers(uint32_t numImages, VkCommandBuffer* cmdBuffers);
 		void freeCommandBuffers(uint32_t bufferCount, const VkCommandBuffer* cmdBuffers);
 		Queue* getQueue();
+		VkRenderPass createSimpleRenderPass();
+		std::vector<VkFramebuffer> createFrameBuffers(VkRenderPass renderPass);
+		void destroyFrameBuffers(const std::vector<VkFramebuffer>& frameBuffers);
+
+		// Recreates the swapchain (and its image views) against the current surface size. Returns
+		// false when the window is minimized (zero extent) and recreation should be skipped.
+		// Callers must recreate any swapchain-dependent resources (framebuffers, command buffers).
+		bool recreateSwapchain();
+
 
 		static void beginCommandBuffer(VkCommandBuffer buffer, VkCommandBufferUsageFlags flags);
 

@@ -37,6 +37,7 @@ add_library(rendering_core STATIC
     src/Utils.cpp
     src/Swapchain.cpp
     src/Queue.cpp
+    src/GraphicsPipeline.cpp
 )
 
 target_include_directories(rendering_core

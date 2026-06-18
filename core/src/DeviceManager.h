@@ -25,6 +25,10 @@ namespace lab {
 		uint32_t selectDevice(VkQueueFlags requiredQueueType, bool supportsPresent);
 		const PhysicalDevice& getSelectedDevice() const;
 
+		// Re-queries the surface capabilities of the selected device (e.g. after a window resize,
+		// when currentExtent has changed).
+		void refreshSurfaceCaps(VkSurfaceKHR surface);
+
 	  private:
 		std::vector<PhysicalDevice> m_Devices;
 		uint32_t m_SelectedIndex;

@@ -81,4 +81,9 @@ namespace lab {
 	const PhysicalDevice& DeviceManager::getSelectedDevice() const {
 		return m_Devices.at(m_SelectedIndex);
 	}
+
+	void DeviceManager::refreshSurfaceCaps(VkSurfaceKHR surface) {
+		auto& device = m_Devices.at(m_SelectedIndex);
+		chk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.Device, surface, &device.SurfaceCaps));
+	}
 } // namespace lab

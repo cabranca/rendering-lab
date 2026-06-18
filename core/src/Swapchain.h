@@ -15,13 +15,18 @@ namespace lab {
 
 		uint32_t getNumImages() const;
 		VkImage getImage(uint32_t index) const;
+		VkImageView getImageView(uint32_t index) const;
 		VkSwapchainKHR getSwapchain() const;
+		VkSurfaceFormatKHR getSurfaceFormat() const;
+		VkExtent2D getExtent() const;
 
 	  private:
 		VkInstance m_Instance;
 		VkSwapchainKHR m_Swapchain;
 		std::vector<VkImage> m_Images;
 		std::vector<VkImageView> m_ImageViews;
+		VkSurfaceFormatKHR m_SurfaceFormat;
+		VkExtent2D m_Extent{};
 
 		VkPresentModeKHR choosePresentMode(const std::vector<VkPresentModeKHR>& presentModes);
 		uint32_t chooseNumImages(const VkSurfaceCapabilitiesKHR& surfaceCaps);

@@ -41,7 +41,7 @@ namespace lab {
 		createDevice();
 		m_Swapchain.init(m_Device, m_DeviceManager.getSelectedDevice(), m_Surface, m_QueueFamily);
 		createCommandPool();
-		m_Queue.init(m_Device, m_Swapchain.getSwapchain(), m_QueueFamily, 0);
+		m_Queue.init(m_Device, m_Swapchain.getSwapchain(), m_QueueFamily, 0, m_Swapchain.getNumImages());
 	}
 
 	void Core::shutdown() {
@@ -62,6 +62,14 @@ namespace lab {
 		std::println("Debug messenger destroyed");
 
 		m_Instance.shutdown();
+	}
+
+	VkDevice Core::getDevice() const {
+		return m_Device;
+	}
+
+	VkExtent2D Core::getExtent() const {
+		return m_Swapchain.getExtent();
 	}
 
 	uint32_t Core::getNumImages() const {
@@ -90,6 +98,99 @@ namespace lab {
 
 	Queue* Core::getQueue() {
 		return &m_Queue;
+	}
+
+	VkRenderPass Core::createSimpleRenderPass() {
+		VkAttachmentDescription attachmentDesc{
+			.flags = 0,
+			.format = m_Swapchain.getSurfaceFormat().format,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+		};
+
+		VkAttachmentReference attachmentRef{
+			.attachment = 0,
+			.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+		};
+
+		VkSubpassDescription subpassDesc{
+			.flags = 0,
+			.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+			.inputAttachmentCount = 0,
+			.pInputAttachments = nullptr,
+			.colorAttachmentCount = 1,
+			.pColorAttachments = &attachmentRef,
+			.pResolveAttachments = nullptr,
+			.pDepthStencilAttachment = nullptr,
+			.preserveAttachmentCount = 0,
+			.pPreserveAttachments = nullptr
+		};
+
+
+		VkRenderPassCreateInfo renderPassCI{
+			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+			.flags = 0,
+			.attachmentCount = 1,
+			.pAttachments = &attachmentDesc,
+			.subpassCount = 1,
+			.pSubpasses = &subpassDesc,
+			.dependencyCount = 0,
+			.pDependencies = nullptr
+		};
+
+		VkRenderPass res;
+
+		chk(vkCreateRenderPass(m_Device, &renderPassCI, nullptr, &res));
+
+		return res;
+	}
+	
+	std::vector<VkFramebuffer> Core::createFrameBuffers(VkRenderPass renderPass) {
+		std::vector<VkFramebuffer> res{m_Swapchain.getNumImages()};
+		VkExtent2D extent = m_Swapchain.getExtent();
+
+		for (uint32_t i = 0; i < m_Swapchain.getNumImages(); i++) {
+			VkImageView imageView = m_Swapchain.getImageView(i);
+			VkFramebufferCreateInfo frameBufferCI{
+				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+				.flags = 0,
+				.renderPass = renderPass,
+				.attachmentCount = 1,
+				.pAttachments = &imageView,
+				.width = extent.width,
+				.height = extent.height,
+				.layers = 1
+			};
+
+			chk(vkCreateFramebuffer(m_Device, &frameBufferCI, nullptr, &res.at(i)));
+		}
+
+		return res;
+	}
+
+	void Core::destroyFrameBuffers(const std::vector<VkFramebuffer>& frameBuffers) {
+		for (VkFramebuffer frameBuffer : frameBuffers)
+			vkDestroyFramebuffer(m_Device, frameBuffer, nullptr);
+	}
+
+	bool Core::recreateSwapchain() {
+		m_Queue.waitIdle();
+
+		m_DeviceManager.refreshSurfaceCaps(m_Surface);
+		VkExtent2D extent = m_DeviceManager.getSelectedDevice().SurfaceCaps.currentExtent;
+		if (extent.width == 0 || extent.height == 0)
+			return false; // Minimized: nothing to render to, skip.
+
+		m_Swapchain.shutdown(m_Device);
+		m_Swapchain.init(m_Device, m_DeviceManager.getSelectedDevice(), m_Surface, m_QueueFamily);
+		m_Queue.setSwapchain(m_Swapchain.getSwapchain());
+
+		return true;
 	}
 
 	void Core::beginCommandBuffer(VkCommandBuffer buffer, VkCommandBufferUsageFlags flags) {
@@ -162,7 +263,7 @@ namespace lab {
 	void Core::createCommandPool() {
 		VkCommandPoolCreateInfo poolCI {
 			.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-			.flags = 0,
+			.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, // allow re-recording on resize
 			.queueFamilyIndex = m_QueueFamily
 		};
 

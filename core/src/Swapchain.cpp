@@ -12,14 +12,15 @@ namespace lab {
 	void Swapchain::init(VkDevice device, const PhysicalDevice& physicalDevice, VkSurfaceKHR surface, uint32_t queueFamilyIndex) {
 		uint32_t numImages = chooseNumImages(physicalDevice.SurfaceCaps);
 		VkPresentModeKHR presentMode = choosePresentMode(physicalDevice.PresentModes);
-		VkSurfaceFormatKHR surfaceFormat = chooseSurfaceFormatAndColorSpace(physicalDevice.SurfaceFormats);
+		m_SurfaceFormat = chooseSurfaceFormatAndColorSpace(physicalDevice.SurfaceFormats);
+		m_Extent = physicalDevice.SurfaceCaps.currentExtent;
 
 		VkSwapchainCreateInfoKHR swapchainCI{ .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 			                                  .surface = surface,
 			                                  .minImageCount = numImages,
-			                                  .imageFormat = surfaceFormat.format,
-			                                  .imageColorSpace = surfaceFormat.colorSpace,
-			                                  .imageExtent = physicalDevice.SurfaceCaps.currentExtent,
+			                                  .imageFormat = m_SurfaceFormat.format,
+			                                  .imageColorSpace = m_SurfaceFormat.colorSpace,
+			                                  .imageExtent = m_Extent,
 			                                  .imageArrayLayers = 1,
 			                                  .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 			                                  .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
@@ -45,7 +46,7 @@ namespace lab {
 		int layerCount = 1;
 		int mipLevels = 1;
 		for (uint32_t i = 0; i < numSwapchainImages; i++)
-			m_ImageViews.at(i) = createImageView(device, m_Images.at(i), surfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT,
+			m_ImageViews.at(i) = createImageView(device, m_Images.at(i), m_SurfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT,
 			                                     VK_IMAGE_VIEW_TYPE_2D, layerCount, mipLevels);
 	}
 
@@ -64,8 +65,20 @@ namespace lab {
 		return m_Images.at(index);
 	}
 
+	VkImageView Swapchain::getImageView(uint32_t index) const {
+		return m_ImageViews.at(index);
+	}
+
 	VkSwapchainKHR Swapchain::getSwapchain() const {
 		return m_Swapchain;
+	}
+
+	VkSurfaceFormatKHR Swapchain::getSurfaceFormat() const {
+		return m_SurfaceFormat;
+	}
+
+	VkExtent2D Swapchain::getExtent() const {
+		return m_Extent;
 	}
 
 	VkPresentModeKHR Swapchain::choosePresentMode(const std::vector<VkPresentModeKHR>& presentModes) {
@@ -88,8 +101,8 @@ namespace lab {
 		return finalNumImages;
 	}
 
-	VkSurfaceFormatKHR Swapchain::chooseSurfaceFormatAndColorSpace(const std::vector<VkSurfaceFormatKHR>& surfaceFormats) {
-		for (const auto& format: surfaceFormats) {
+	VkSurfaceFormatKHR Swapchain::chooseSurfaceFormatAndColorSpace(const std::vector<VkSurfaceFormatKHR>& surfaceFormat) {
+		for (const auto& format: surfaceFormat) {
 			if (format.format == VK_FORMAT_B8G8R8A8_SRGB && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
 				return format;
 		}
