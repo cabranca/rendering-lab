@@ -42,9 +42,12 @@ namespace lab {
 		m_Swapchain.init(m_Device, m_DeviceManager.getSelectedDevice(), m_Surface, m_QueueFamily);
 		createCommandPool();
 		m_Queue.init(m_Device, m_Swapchain.getSwapchain(), m_QueueFamily, 0, m_Swapchain.getNumImages());
+		createCommandBuffers(1, &m_CopyCmdBuffer);
 	}
 
 	void Core::shutdown() {
+		vkFreeCommandBuffers(m_Device, m_CmdPool, 1, &m_CopyCmdBuffer);
+
 		m_Queue.shutdown();
 
 		vkDestroyCommandPool(m_Device, m_CmdPool, nullptr);
@@ -98,6 +101,92 @@ namespace lab {
 
 	Queue* Core::getQueue() {
 		return &m_Queue;
+	}
+
+	BufferAndMemory Core::createBuffer(VkDeviceSize size, VkBufferUsageFlags flags, VkMemoryPropertyFlags properties) {
+		VkBufferCreateInfo bufferCI{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+			.size = size,
+			.usage = flags,
+			.sharingMode = VK_SHARING_MODE_EXCLUSIVE
+		};
+
+		BufferAndMemory res;
+
+		chk(vkCreateBuffer(m_Device, &bufferCI, nullptr, &res.Buffer));
+		
+		VkMemoryRequirements memReqs{};
+		vkGetBufferMemoryRequirements(m_Device, res.Buffer, &memReqs);
+
+		res.AllocationSize = memReqs.size;
+
+		uint32_t memoryTypeIndex{ UINT32_MAX };
+		const auto& memProps = m_DeviceManager.getSelectedDevice().MemProps;
+		for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+			const auto& memType = memProps.memoryTypes[i];
+			uint32_t currBitmask = (1 << i);
+			bool isCurrMemTypeSupported = ((memReqs.memoryTypeBits & properties));
+			bool hasRequiredMemProps = ((memType.propertyFlags & properties) == properties);
+			if (isCurrMemTypeSupported && hasRequiredMemProps) {
+				memoryTypeIndex = i;
+				break;
+			}
+		}
+		
+		assert(memoryTypeIndex != UINT32_MAX);
+
+		VkMemoryAllocateInfo allocateInfo{
+			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+			.allocationSize = memReqs.size,
+			.memoryTypeIndex = memoryTypeIndex
+		};
+		chk(vkAllocateMemory(m_Device, &allocateInfo, nullptr, &res.Mem));
+
+		chk(vkBindBufferMemory(m_Device, res.Buffer, res.Mem, 0));
+
+		return res;
+	}
+
+	BufferAndMemory Core::createVertexBuffer(const void* vertexData, size_t vertexDataSize) {
+		VkBufferUsageFlags flags = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		VkMemoryPropertyFlags memProps = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+		
+		
+		BufferAndMemory stagingVB = createBuffer(vertexDataSize, flags, memProps);
+
+		void* pMem = nullptr;
+		VkDeviceSize offset = 0;
+		VkMemoryMapFlags memFlags = 0;
+		chk(vkMapMemory(m_Device, stagingVB.Mem, offset, stagingVB.AllocationSize, memFlags, &pMem));
+
+		memcpy(pMem, vertexData, vertexDataSize);
+
+		vkUnmapMemory(m_Device, stagingVB.Mem);
+
+		flags = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		memProps = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+		BufferAndMemory vb = createBuffer(vertexDataSize, flags, memProps);
+
+		copyBuffer(vb.Buffer, stagingVB.Buffer, vertexDataSize);
+
+		stagingVB.destroy(m_Device);
+
+		return vb;
+	}
+
+	void Core::copyBuffer(VkBuffer dst, VkBuffer src, size_t size) {
+		beginCommandBuffer(m_CopyCmdBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+		VkBufferCopy bufferCopy{
+			.srcOffset = 0,
+			.dstOffset = 0,
+			.size = size
+		};
+
+		vkCmdCopyBuffer(m_CopyCmdBuffer, src, dst, 1, &bufferCopy);
+		vkEndCommandBuffer(m_CopyCmdBuffer);
+		m_Queue.submitSync(m_CopyCmdBuffer);
+		m_Queue.waitIdle();
 	}
 
 	VkRenderPass Core::createSimpleRenderPass() {

@@ -4,6 +4,7 @@
 #include <string_view>
 #include <vulkan/vulkan_core.h>
 
+#include "Common.h"
 #include "DeviceManager.h"
 #include "Instance.h"
 #include "Queue.h"
@@ -24,6 +25,7 @@ namespace lab {
 		void createCommandBuffers(uint32_t numImages, VkCommandBuffer* cmdBuffers);
 		void freeCommandBuffers(uint32_t bufferCount, const VkCommandBuffer* cmdBuffers);
 		Queue* getQueue();
+		BufferAndMemory createVertexBuffer(const void* vertexData, size_t vertexDataSize);
 		VkRenderPass createSimpleRenderPass();
 		std::vector<VkFramebuffer> createFrameBuffers(VkRenderPass renderPass);
 		void destroyFrameBuffers(const std::vector<VkFramebuffer>& frameBuffers);
@@ -46,10 +48,13 @@ namespace lab {
 		VkDevice m_Device{ VK_NULL_HANDLE };
 		Swapchain m_Swapchain;
 		VkCommandPool m_CmdPool;
+		VkCommandBuffer m_CopyCmdBuffer;
 
 		void createDebugCallback();
 		void createSurface(SDL_Window* window);
 		void createDevice();
 		void createCommandPool();
+		BufferAndMemory createBuffer(VkDeviceSize size, VkBufferUsageFlags flags, VkMemoryPropertyFlags properties);
+		void copyBuffer(VkBuffer dst, VkBuffer src, size_t size);
 	};
 } // namespace lab

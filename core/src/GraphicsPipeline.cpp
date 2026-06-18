@@ -1,12 +1,15 @@
 #include "GraphicsPipeline.h"
 #include "Check.h"
-
 #include <volk/volk.h>
 
 namespace lab {
 
-	void GraphicsPipeline::init(VkDevice device, VkRenderPass renderPass, VkShaderModule vs, VkShaderModule fs) {
+	void GraphicsPipeline::init(VkDevice device, VkRenderPass renderPass, VkShaderModule vs, VkShaderModule fs, const SimpleMesh* mesh,
+	                            uint32_t numImages) {
 		m_Device = device;
+
+		if (mesh)
+			createDescriptorSets(numImages, mesh);
 
 		VkPipelineShaderStageCreateInfo shaderStageCI[2] = { { .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 			                                                   .flags = 0,
@@ -58,9 +61,16 @@ namespace lab {
 			                                         .attachmentCount = 1,
 			                                         .pAttachments = &blendAttachState };
 
-		VkPipelineLayoutCreateInfo layoutCI{ .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-			                                 .setLayoutCount = 0,
-			                                 .pSetLayouts = nullptr };
+		VkPipelineLayoutCreateInfo layoutCI{ .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+
+		// Can I have a mesh without VB?
+		if (mesh) {
+			layoutCI.setLayoutCount = 1;
+			layoutCI.pSetLayouts = &m_DescriptorSetLayout;
+		} else {
+			layoutCI.setLayoutCount = 0;
+			layoutCI.pSetLayouts = nullptr;
+		}
 
 		chk(vkCreatePipelineLayout(m_Device, &layoutCI, nullptr, &m_PipelineLayout));
 
@@ -87,7 +97,74 @@ namespace lab {
 		vkDestroyPipeline(m_Device, m_Pipeline, NULL);
 	}
 
-	void GraphicsPipeline::bind(VkCommandBuffer cmdBuffer) {
+	void GraphicsPipeline::bind(VkCommandBuffer cmdBuffer, int imageIndex) {
 		vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
+
+		if (m_DescriptorSets.size() > 0) {
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_PipelineLayout, 0, 1, &m_DescriptorSets.at(imageIndex), 0,
+			                        nullptr);
+		}
+	}
+
+	void GraphicsPipeline::createDescriptorSets(uint32_t numImages, const SimpleMesh* mesh) {
+		createDescriptorPool(numImages);
+		createDescriptorSetLayout();
+		allocateDescriptorSets(numImages);
+		updateDescriptorSets(numImages, mesh);
+	}
+
+	void GraphicsPipeline::createDescriptorPool(uint32_t numImages) {
+		VkDescriptorPoolCreateInfo poolCI{
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, .flags = 0, .maxSets = numImages, .pPoolSizes = nullptr
+		};
+
+		chk(vkCreateDescriptorPool(m_Device, &poolCI, nullptr, &m_DescriptorPool));
+	}
+
+	void GraphicsPipeline::createDescriptorSetLayout() {
+		std::vector<VkDescriptorSetLayoutBinding> layoutBindings{ { .binding = 0,
+			                                                        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			                                                        .descriptorCount = 1,
+			                                                        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT } };
+
+		VkDescriptorSetLayoutCreateInfo descSetLayoutCI{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+			                                             .pNext = nullptr,
+			                                             .flags = 0,
+			                                             .bindingCount = (uint32_t)layoutBindings.size(),
+			                                             .pBindings = layoutBindings.data() };
+
+		chk(vkCreateDescriptorSetLayout(m_Device, &descSetLayoutCI, nullptr, &m_DescriptorSetLayout));
+	}
+
+	void GraphicsPipeline::allocateDescriptorSets(uint32_t numImages) {
+		std::vector<VkDescriptorSetLayout> layouts(numImages, m_DescriptorSetLayout);
+
+		VkDescriptorSetAllocateInfo allocInfo{ .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+			                                   .pNext = nullptr,
+			                                   .descriptorPool = m_DescriptorPool,
+			                                   .descriptorSetCount = numImages,
+			                                   .pSetLayouts = layouts.data() };
+
+		m_DescriptorSets.resize(numImages);
+
+		chk(vkAllocateDescriptorSets(m_Device, &allocInfo, m_DescriptorSets.data()));
+	}
+
+	void GraphicsPipeline::updateDescriptorSets(uint32_t numImages, const SimpleMesh* mesh) {
+		VkDescriptorBufferInfo descBI{ .buffer = mesh->VB.Buffer, .offset = 0, .range = mesh->VertexBufferSize };
+
+		std::vector<VkWriteDescriptorSet> writeDescriptorSet;
+
+		for (uint32_t i = 0; i < numImages; i++) {
+			writeDescriptorSet.push_back(VkWriteDescriptorSet{ .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			                                                   .dstSet = m_DescriptorSets.at(i),
+			                                                   .dstBinding = 0,
+			                                                   .dstArrayElement = 0,
+			                                                   .descriptorCount = 1,
+			                                                   .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			                                                   .pBufferInfo = &descBI });
+		}
+
+		vkUpdateDescriptorSets(m_Device, writeDescriptorSet.size(), writeDescriptorSet.data(), 0, nullptr);
 	}
 } // namespace lab
