@@ -1,0 +1,52 @@
+# clang-tidy config for Cabrankengine.
+# Run in-editor via clangd's --clang-tidy flag, or on the CLI with
+# compile_commands.json (regenerate with: bear -- make).
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  cppcoreguidelines-*,
+  google-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  clang-analyzer-*,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -misc-non-private-member-variables-in-classes,
+  -google-readability-todo,
+  -google-build-using-namespace,
+  -readability-braces-around-statements,
+  -readability-uppercase-literal-suffix,
+  -google-readability-braces-around-statements,
+  -bugprone-easily-swappable-parameters,
+  -misc-no-recursion
+
+# Only lint this project's own headers, never vendor/ submodules.
+HeaderFilterRegex: '.*/src/.*\.(h|hpp)$'
+
+WarningsAsErrors: ''
+
+# Match the existing conventions: PascalCase types, m_ member prefix,
+# lower-case namespaces, CBK_ macros.
+CheckOptions:
+  - { key: readability-identifier-naming.ClassCase,            value: CamelCase }
+  - { key: readability-identifier-naming.StructCase,           value: CamelCase }
+  - { key: readability-identifier-naming.EnumCase,             value: CamelCase }
+  - { key: readability-identifier-naming.EnumConstantCase,     value: CamelCase }
+  - { key: readability-identifier-naming.FunctionCase,         value: camelBack }
+  - { key: readability-identifier-naming.PrivateMemberCase,    value: CamelCase }
+  - { key: readability-identifier-naming.PrivateMemberPrefix,  value: m_ }
+  - { key: readability-identifier-naming.ProtectedMemberCase,  value: CamelCase }
+  - { key: readability-identifier-naming.ProtectedMemberPrefix, value: m_ }
+  - { key: readability-identifier-naming.MacroDefinitionCase,  value: UPPER_CASE }

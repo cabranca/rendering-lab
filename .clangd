@@ -1,0 +1,5 @@
+InlayHints:
+  ParameterNames: No
+
+Completion:
+  HeaderInsertion: Never

@@ -1,0 +1,11 @@
+# Build output
+/build/
+
+# clangd index cache
+/.cache/
+
+# Fetched at configure time by CMake FetchContent (see CMakeLists.txt)
+/external/spdlog/
+
+# Claude
+.claude
