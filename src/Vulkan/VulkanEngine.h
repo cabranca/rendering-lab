@@ -11,7 +11,7 @@
 namespace lab::vk {
 
 	struct Vertex {
-		math::Vector2 Position;
+		math::Vector3 Position;
 		math::Vector2 TexCoords;
 
 		static VkVertexInputBindingDescription getBindingDescription() {
@@ -19,7 +19,7 @@ namespace lab::vk {
 		}
 
 		static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
-			return { { { .location = 0, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(Vertex, Position) },
+			return { { { .location = 0, .binding = 0, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof(Vertex, Position) },
 				       { .location = 1, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(Vertex, TexCoords) } } };
 		}
 	};
@@ -37,12 +37,16 @@ namespace lab::vk {
 		void drawFrame();
 
 	  private:
-		constexpr static std::array<Vertex, 4> k_Vertices = { { { .Position = { -0.5f, -0.5f }, .TexCoords = { 1.0f, 0.0f } },
-			                                                    { .Position = {  0.5f, -0.5f }, .TexCoords = { 0.0f, 0.0f } },
-			                                                    { .Position = {  0.5f,  0.5f }, .TexCoords = { 0.0f, 1.0f } },
-			                                                    { .Position = { -0.5f,  0.5f }, .TexCoords = { 1.0f, 1.0f } } } };
-		constexpr static std::array<uint16_t, 6> k_Indices = {0, 1, 2, 2, 3, 0};
-													
+		constexpr static std::array<Vertex, 8> k_Vertices = { { { .Position = { -0.5f, -0.5f, 0.0f }, .TexCoords = { 1.0f, 0.0f } },
+			                                                    { .Position = { 0.5f, -0.5f, 0.0f }, .TexCoords = { 0.0f, 0.0f } },
+			                                                    { .Position = { 0.5f, 0.5f, 0.0f }, .TexCoords = { 0.0f, 1.0f } },
+			                                                    { .Position = { -0.5f, 0.5f, 0.0f }, .TexCoords = { 1.0f, 1.0f } },
+			                                                    { .Position = { -0.5f, -0.5f, -0.5f }, .TexCoords = { 1.0f, 0.0f } },
+			                                                    { .Position = { 0.5f, -0.5f, -0.5f }, .TexCoords = { 0.0f, 0.0f } },
+			                                                    { .Position = { 0.5f, 0.5f, -0.5f }, .TexCoords = { 0.0f, 1.0f } },
+			                                                    { .Position = { -0.5f, 0.5f, -0.5f }, .TexCoords = { 1.0f, 1.0f } } } };
+		constexpr static std::array<uint16_t, 12> k_Indices = { 0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4 };
+
 		constexpr static int k_MaxFramesInFlight = 3;
 		int m_FrameIndex = 0;
 		SDL_Window* m_WindowHandle = nullptr; // NOT THE OWNER
@@ -63,6 +67,10 @@ namespace lab::vk {
 		VkPipelineLayout m_PipelineLayout = VK_NULL_HANDLE;
 		VkPipeline m_GraphicsPipeline = VK_NULL_HANDLE;
 		VkCommandPool m_CmdPool = VK_NULL_HANDLE;
+		VkImage m_DepthImage = VK_NULL_HANDLE;
+		VkDeviceMemory m_DepthImageMemory = VK_NULL_HANDLE;
+		VkImageView m_DepthImageView = VK_NULL_HANDLE;
+		VkFormat m_DepthFormat;
 		VkImage m_TextureImage = VK_NULL_HANDLE;
 		VkDeviceMemory m_TextureImageMemory = VK_NULL_HANDLE;
 		VkImageView m_TextureImageView = VK_NULL_HANDLE;
@@ -95,11 +103,13 @@ namespace lab::vk {
 		[[nodiscard]] VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 		[[nodiscard]] static uint32_t chooseSwapMinImageCount(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
 		void createImageViews();
-		VkImageView createImageView(VkImage image, VkFormat format);
+		VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 		void createDescriptorSetLayout();
 		void createGraphicsPipeline();
 		[[nodiscard]] VkShaderModule createShaderModule(const std::vector<char>& code) const;
 		void createCommandPools();
+		void createDepthResources();
+		VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 		void createTextureImage();
 		std::pair<VkImage, VkDeviceMemory> createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
 		                                               VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
@@ -118,8 +128,9 @@ namespace lab::vk {
 		void createDescriptorSets();
 		void createCommandBuffers();
 		void recordCommandBuffer(uint32_t frameIndex);
-		void transitionImageLayout(VkCommandBuffer buffer, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags2 srcAccessMask,
-		                           VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask);
+		void transitionImageLayout(VkCommandBuffer buffer, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout,
+		                           VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask,
+		                           VkPipelineStageFlags2 dstStageMask, VkImageAspectFlags aspectFlags);
 		void createSyncObjects();
 		void createRenderFinishedSemaphores();
 		void updateUniformBuffer(uint32_t currentImage);

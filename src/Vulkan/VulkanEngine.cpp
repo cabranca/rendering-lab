@@ -97,14 +97,15 @@ namespace lab::vk {
 		createSwapchain(VK_NULL_HANDLE);
 		createImageViews();
 		createDescriptorSetLayout();
-		createGraphicsPipeline();
 		createCommandPools();
+		createDepthResources();
 		createTextureImage();
 		createTextureImageView();
 		createTextureSampler();
 		createVertexBuffer();
 		createIndexBuffer();
 		createUniformBuffers();
+		createGraphicsPipeline();
 		createDescriptorPool();
 		createDescriptorSets();
 		createCommandBuffers();
@@ -134,6 +135,24 @@ namespace lab::vk {
 			vkDestroyDescriptorPool(m_Device, m_DescriptorPool, nullptr);
 			m_DescriptorPool = VK_NULL_HANDLE;
 			CBK_DEBUG("Desriptor Pool destroyed");
+		}
+
+		if (m_DepthImageView != VK_NULL_HANDLE) {
+			vkDestroyImageView(m_Device, m_DepthImageView, nullptr);
+			m_DepthImageView = VK_NULL_HANDLE;
+			CBK_DEBUG("Texture Image View destroyed");
+		}
+
+		if (m_DepthImageMemory != VK_NULL_HANDLE) {
+			vkFreeMemory(m_Device, m_DepthImageMemory, nullptr);
+			m_DepthImageMemory = VK_NULL_HANDLE;
+			CBK_DEBUG("Texture deallocated");
+		}
+
+		if (m_DepthImage != VK_NULL_HANDLE) {
+			vkDestroyImage(m_Device, m_DepthImage, nullptr);
+			m_DepthImage = VK_NULL_HANDLE;
+			CBK_DEBUG("Index Buffer destroyed");
 		}
 
 		if (m_TextureSampler != VK_NULL_HANDLE) {
@@ -283,7 +302,13 @@ namespace lab::vk {
 
 		transitionImageLayout(m_CmdBuffers[m_FrameIndex], m_Images[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED,
 		                      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_2_NONE, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-		                      VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+		                      VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+		                      VK_IMAGE_ASPECT_COLOR_BIT);
+		transitionImageLayout(m_CmdBuffers[m_FrameIndex], m_DepthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+		                      VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+		                      VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+		                      VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+		                      VK_IMAGE_ASPECT_DEPTH_BIT);
 
 		VkRenderingAttachmentInfo attachmentInfo{ .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
 			                                      .pNext = nullptr,
@@ -294,7 +319,18 @@ namespace lab::vk {
 			                                      .resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 			                                      .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 			                                      .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-			                                      .clearValue = { .color = { 0.0f, 0.0f, 0.0f, 1.0f } } };
+			                                      .clearValue = { .color = { 0.0f, 0.0f, 0.0f, 1.0f }, } };
+
+		VkRenderingAttachmentInfo depthAttachmentInfo{ .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+			                                           .pNext = nullptr,
+			                                           .imageView = m_DepthImageView,
+			                                           .imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+			                                           .resolveMode = VK_RESOLVE_MODE_NONE,
+			                                           .resolveImageView = VK_NULL_HANDLE,
+			                                           .resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			                                           .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			                                           .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			                                           .clearValue = { .depthStencil = { 1.0f, 0 } } };
 
 		VkRenderingInfo renderingInfo{ .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
 			                           .pNext = nullptr,
@@ -302,7 +338,8 @@ namespace lab::vk {
 			                           .renderArea = { .offset = { 0, 0 }, .extent = m_Extent },
 			                           .layerCount = 1,
 			                           .colorAttachmentCount = 1,
-			                           .pColorAttachments = &attachmentInfo };
+			                           .pColorAttachments = &attachmentInfo,
+									   .pDepthAttachment = &depthAttachmentInfo };
 
 		vkCmdBeginRendering(m_CmdBuffers[m_FrameIndex], &renderingInfo);
 
@@ -334,7 +371,7 @@ namespace lab::vk {
 
 		transitionImageLayout(m_CmdBuffers[m_FrameIndex], m_Images[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		                      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_2_NONE,
-		                      VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
+		                      VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 
 		vkCheck(vkEndCommandBuffer(m_CmdBuffers[m_FrameIndex]), "vkEndCommandBuffer");
 
@@ -702,11 +739,11 @@ namespace lab::vk {
 	void VulkanEngine::createImageViews() {
 		m_ImageViews.resize(m_Images.size());
 		for (size_t i = 0; i < m_Images.size(); i++) {
-			m_ImageViews[i] = createImageView(m_Images[i], m_SelectedFormat.format);
+			m_ImageViews[i] = createImageView(m_Images[i], m_SelectedFormat.format, VK_IMAGE_ASPECT_COLOR_BIT);
 		}
 	}
 
-	VkImageView VulkanEngine::createImageView(VkImage image, VkFormat format) {
+	VkImageView VulkanEngine::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
 		VkImageView imageView = VK_NULL_HANDLE;
 		VkImageViewCreateInfo viewCI{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 			                          .pNext = nullptr,
@@ -715,7 +752,7 @@ namespace lab::vk {
 			                          .viewType = VK_IMAGE_VIEW_TYPE_2D,
 			                          .format = format,
 			                          .components = {.r = VK_COMPONENT_SWIZZLE_IDENTITY, .g = VK_COMPONENT_SWIZZLE_IDENTITY, .b = VK_COMPONENT_SWIZZLE_IDENTITY, .a = VK_COMPONENT_SWIZZLE_IDENTITY, },
-			                          .subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			                          .subresourceRange = { .aspectMask = aspectFlags,
 			                                                .baseMipLevel = 0,
 			                                                .levelCount = 1,
 			                                                .baseArrayLayer = 0,
@@ -841,6 +878,17 @@ namespace lab::vk {
 			.blendConstants = { 0.0f, 0.0f, 0.0f, 1.0f}
 		};
 
+		VkPipelineDepthStencilStateCreateInfo depthStencilCI{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+			.pNext = nullptr,
+			.flags = 0,
+			.depthTestEnable = VK_TRUE,
+			.depthWriteEnable = VK_TRUE,
+			.depthCompareOp = VK_COMPARE_OP_LESS,
+			.depthBoundsTestEnable = VK_FALSE,
+			.stencilTestEnable = VK_FALSE,
+		};
+
 		VkPipelineLayoutCreateInfo layoutCI {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 			.pNext = nullptr,
@@ -858,7 +906,7 @@ namespace lab::vk {
 			.viewMask = 0,
 			.colorAttachmentCount = 1,
 			.pColorAttachmentFormats = &m_SelectedFormat.format,
-			.depthAttachmentFormat = VK_FORMAT_UNDEFINED,
+			.depthAttachmentFormat = m_DepthFormat,
 			.stencilAttachmentFormat = VK_FORMAT_UNDEFINED
 		};
 		VkGraphicsPipelineCreateInfo graphicsPipelineCI {
@@ -873,7 +921,7 @@ namespace lab::vk {
 			.pViewportState = &viewportStateCI,
 			.pRasterizationState = &rasterizerCI,
 			.pMultisampleState = &msaaCI,
-			.pDepthStencilState = nullptr,
+			.pDepthStencilState = &depthStencilCI,
 			.pColorBlendState = &blendStateCI,
 			.pDynamicState = &dynamicStateCI,
 			.layout = m_PipelineLayout,
@@ -915,6 +963,24 @@ namespace lab::vk {
 		vkCheck(vkCreateCommandPool(m_Device, &poolCI, nullptr, &m_SingleTimeCmdPool), "vkCreateCommandPool");
 	}
 
+	void VulkanEngine::createDepthResources() {
+		m_DepthFormat = findSupportedFormat({ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
+		                                           VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT);
+		std::tie(m_DepthImage, m_DepthImageMemory) = createImage(m_Extent.width, m_Extent.height, m_DepthFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		m_DepthImageView = createImageView(m_DepthImage, m_DepthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+	}
+
+	VkFormat VulkanEngine::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
+		for (const auto& format : candidates) {
+			VkFormatProperties2 props{.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2};
+			vkGetPhysicalDeviceFormatProperties2(m_PhysicalDevice, format, &props);
+			if (((tiling == VK_IMAGE_TILING_LINEAR) && ((props.formatProperties.linearTilingFeatures & features) == features)) || ((tiling == VK_IMAGE_TILING_OPTIMAL) && ((props.formatProperties.optimalTilingFeatures & features) == features)))
+				return format;
+		}
+		CBK_FATAL("Failed to find supported format!");
+		return VK_FORMAT_MAX_ENUM;
+	}
+
 	void VulkanEngine::createTextureImage() {
 		int width, height, channels;
 		stbi_uc* pixels = stbi_load("assets/textures/statue.jpg", &width, &height, &channels, STBI_rgb_alpha);
@@ -940,11 +1006,11 @@ namespace lab::vk {
 		VkCommandBuffer copyCmdBuffer = beginSingleTimeCommands();
 		transitionImageLayout(copyCmdBuffer, m_TextureImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		                      VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-		                      VK_PIPELINE_STAGE_2_TRANSFER_BIT);
+		                      VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 		copyBufferToImage(copyCmdBuffer, stagingBuffer, m_TextureImage, width, height);
 		transitionImageLayout(copyCmdBuffer, m_TextureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		                      VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-		                      VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
+		                      VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 		endSingleTimeCommands(copyCmdBuffer);
 
 		CBK_DEBUG("Texture Image created");
@@ -989,7 +1055,7 @@ namespace lab::vk {
 	}
 
 	void VulkanEngine::createTextureImageView() {
-		m_TextureImageView = createImageView(m_TextureImage, VK_FORMAT_R8G8B8A8_SRGB);
+		m_TextureImageView = createImageView(m_TextureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 	}
 
 	void VulkanEngine::createTextureSampler() {
@@ -1272,7 +1338,7 @@ namespace lab::vk {
 
 	void VulkanEngine::transitionImageLayout(VkCommandBuffer buffer, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout,
 	                                         VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask,
-	                                         VkPipelineStageFlags2 dstStageMask) {
+	                                         VkPipelineStageFlags2 dstStageMask, VkImageAspectFlags aspectFlags) {
 		VkImageMemoryBarrier2 barrier{ .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 			                           .pNext = nullptr,
 			                           .srcStageMask = srcStageMask,
@@ -1284,7 +1350,7 @@ namespace lab::vk {
 			                           .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			                           .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 			                           .image = image,
-			                           .subresourceRange = { .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			                           .subresourceRange = { .aspectMask = aspectFlags,
 			                                                 .baseMipLevel = 0,
 			                                                 .levelCount = 1,
 			                                                 .baseArrayLayer = 0,
@@ -1366,9 +1432,28 @@ namespace lab::vk {
 		cleanupSwapchain();
 		createImageViews();
 		createRenderFinishedSemaphores();
+		createDepthResources();
 	}
 
 	void VulkanEngine::cleanupSwapchain() {
+		if (m_DepthImageView != VK_NULL_HANDLE) {
+			vkDestroyImageView(m_Device, m_DepthImageView, nullptr);
+			m_DepthImageView = VK_NULL_HANDLE;
+			CBK_DEBUG("Texture Image View destroyed");
+		}
+
+		if (m_DepthImageMemory != VK_NULL_HANDLE) {
+			vkFreeMemory(m_Device, m_DepthImageMemory, nullptr);
+			m_DepthImageMemory = VK_NULL_HANDLE;
+			CBK_DEBUG("Texture deallocated");
+		}
+
+		if (m_DepthImage != VK_NULL_HANDLE) {
+			vkDestroyImage(m_Device, m_DepthImage, nullptr);
+			m_DepthImage = VK_NULL_HANDLE;
+			CBK_DEBUG("Index Buffer destroyed");
+		}
+		
 		for (const auto& view: m_ImageViews) {
 			vkDestroyImageView(m_Device, view, nullptr);
 		}

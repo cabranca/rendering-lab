@@ -1,5 +1,5 @@
 struct VertexInput {
-	float2 inPosition;
+	float3 inPosition;
 	float2 inTexCoords;
 }
 
@@ -20,7 +20,7 @@ Sampler2D texture;
 [shader("vertex")]
 VertexOutput vertMain(VertexInput input) {
 	VertexOutput output;
-	output.pos = mul(ubo.proj, mul(ubo.view, mul(ubo.model, float4(input.inPosition, 0.0, 1.0))));
+	output.pos = mul(ubo.proj, mul(ubo.view, mul(ubo.model, float4(input.inPosition, 1.0))));
 	output.texCoords = input.inTexCoords;
 	return output;
 }
