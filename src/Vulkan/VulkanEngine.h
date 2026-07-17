@@ -37,19 +37,14 @@ namespace lab::vk {
 		void drawFrame();
 
 	  private:
-		constexpr static std::array<Vertex, 8> k_Vertices = { { { .Position = { -0.5f, -0.5f, 0.0f }, .TexCoords = { 1.0f, 0.0f } },
-			                                                    { .Position = { 0.5f, -0.5f, 0.0f }, .TexCoords = { 0.0f, 0.0f } },
-			                                                    { .Position = { 0.5f, 0.5f, 0.0f }, .TexCoords = { 0.0f, 1.0f } },
-			                                                    { .Position = { -0.5f, 0.5f, 0.0f }, .TexCoords = { 1.0f, 1.0f } },
-			                                                    { .Position = { -0.5f, -0.5f, -0.5f }, .TexCoords = { 1.0f, 0.0f } },
-			                                                    { .Position = { 0.5f, -0.5f, -0.5f }, .TexCoords = { 0.0f, 0.0f } },
-			                                                    { .Position = { 0.5f, 0.5f, -0.5f }, .TexCoords = { 0.0f, 1.0f } },
-			                                                    { .Position = { -0.5f, 0.5f, -0.5f }, .TexCoords = { 1.0f, 1.0f } } } };
-		constexpr static std::array<uint16_t, 12> k_Indices = { 0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4 };
-
+		constexpr static std::string_view k_ModelPath = "assets/models/viking/viking_room.obj";
+		constexpr static std::string_view k_TexturePath = "assets/textures/viking_room.png";
 		constexpr static int k_MaxFramesInFlight = 3;
 		int m_FrameIndex = 0;
 		SDL_Window* m_WindowHandle = nullptr; // NOT THE OWNER
+
+		std::vector<Vertex> m_Vertices;
+		std::vector<uint32_t> m_Indices;
 
 		VkInstance m_Instance = VK_NULL_HANDLE;
 		VkDebugUtilsMessengerEXT m_DebugMessenger = VK_NULL_HANDLE;
@@ -115,6 +110,7 @@ namespace lab::vk {
 		                                               VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 		void createTextureImageView();
 		void createTextureSampler();
+		void loadModel();
 		void createVertexBuffer();
 		void createIndexBuffer();
 		void createUniformBuffers();

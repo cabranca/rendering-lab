@@ -13,6 +13,8 @@
 #include <vulkan/vk_enum_string_helper.h>
 
 #include "stb_image.h"
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
 
 #include "Logger.h"
 #include "VulkanEngine.h"
@@ -102,6 +104,7 @@ namespace lab::vk {
 		createTextureImage();
 		createTextureImageView();
 		createTextureSampler();
+		loadModel();
 		createVertexBuffer();
 		createIndexBuffer();
 		createUniformBuffers();
@@ -347,7 +350,7 @@ namespace lab::vk {
 
 		VkDeviceSize offsets = 0;
 		vkCmdBindVertexBuffers(m_CmdBuffers[m_FrameIndex], 0, 1, &m_VertexBuffer, &offsets);
-		vkCmdBindIndexBuffer(m_CmdBuffers[m_FrameIndex], m_IndexBuffer, {}, VK_INDEX_TYPE_UINT16);
+		vkCmdBindIndexBuffer(m_CmdBuffers[m_FrameIndex], m_IndexBuffer, {}, VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(m_CmdBuffers[m_FrameIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, m_PipelineLayout, 0, 1,
 		                        &m_DescriptorSets[m_FrameIndex], 0, nullptr);
 
@@ -365,7 +368,7 @@ namespace lab::vk {
 		vkCmdSetViewport(m_CmdBuffers[m_FrameIndex], 0, 1, &viewport);
 		vkCmdSetScissor(m_CmdBuffers[m_FrameIndex], 0, 1, &scissor);
 
-		vkCmdDrawIndexed(m_CmdBuffers[m_FrameIndex], static_cast<uint32_t>(k_Indices.size()), 1, 0, 0, 0);
+		vkCmdDrawIndexed(m_CmdBuffers[m_FrameIndex], static_cast<uint32_t>(m_Indices.size()), 1, 0, 0, 0);
 
 		vkCmdEndRendering(m_CmdBuffers[m_FrameIndex]);
 
@@ -983,7 +986,7 @@ namespace lab::vk {
 
 	void VulkanEngine::createTextureImage() {
 		int width, height, channels;
-		stbi_uc* pixels = stbi_load("assets/textures/statue.jpg", &width, &height, &channels, STBI_rgb_alpha);
+		stbi_uc* pixels = stbi_load(k_TexturePath.data(), &width, &height, &channels, STBI_rgb_alpha);
 		if (!pixels) {
 			CBK_ERROR("Couldn't load texture {}", "assets/textures/statue.jpg");
 			return;
@@ -1085,14 +1088,46 @@ namespace lab::vk {
 		vkCheck(vkCreateSampler(m_Device, &samplerCI, nullptr, &m_TextureSampler), "vkCreateSampler");
 	}
 
+	void VulkanEngine::loadModel()
+	{
+			tinyobj::attrib_t                attrib;
+			std::vector<tinyobj::shape_t>    shapes;
+			std::vector<tinyobj::material_t> materials;
+			std::string                      warn, err;
+
+			if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, k_ModelPath.data()))
+			{
+				throw std::runtime_error(warn + err);
+			}
+
+			for (const auto& shape : shapes) {
+				for (const auto& index : shape.mesh.indices) {
+					Vertex vertex{
+						.Position = {
+							attrib.vertices[3 * index.vertex_index + 0],
+							attrib.vertices[3 * index.vertex_index + 1],
+							attrib.vertices[3 * index.vertex_index + 2]
+						},
+						.TexCoords = {
+							attrib.texcoords[2 * index.texcoord_index + 0],
+							1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
+						}
+					};
+					
+					m_Vertices.push_back(vertex);
+					m_Indices.emplace_back(shape.mesh.indices.size());
+				}
+			}
+	}
+
 	void VulkanEngine::createVertexBuffer() {
-		VkDeviceSize bufferSize = sizeof(Vertex) * k_Vertices.size();
+		VkDeviceSize bufferSize = sizeof(Vertex) * m_Vertices.size();
 		auto [stagingBuffer, stagingBufferMemory] = createBuffer(bufferSize, VK_BUFFER_USAGE_2_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
 			                                                                                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 		void* dataStaging = nullptr;
-		vkCheck(vkMapMemory(m_Device, stagingBufferMemory, 0, sizeof(Vertex) * k_Vertices.size(), 0, &dataStaging), "vkMapMemory");
-		memcpy(dataStaging, k_Vertices.data(), sizeof(Vertex) * k_Vertices.size());
+		vkCheck(vkMapMemory(m_Device, stagingBufferMemory, 0, sizeof(Vertex) * m_Vertices.size(), 0, &dataStaging), "vkMapMemory");
+		memcpy(dataStaging, m_Vertices.data(), sizeof(Vertex) * m_Vertices.size());
 		vkUnmapMemory(m_Device, stagingBufferMemory);
 
 		std::tie(m_VertexBuffer, m_VertexBufferMemory) = createBuffer(
@@ -1106,13 +1141,13 @@ namespace lab::vk {
 	}
 
 	void VulkanEngine::createIndexBuffer() {
-		VkDeviceSize bufferSize = sizeof(Vertex) * k_Vertices.size();
+		VkDeviceSize bufferSize = sizeof(Vertex) * m_Indices.size();
 		auto [stagingBuffer, stagingBufferMemory] = createBuffer(bufferSize, VK_BUFFER_USAGE_2_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
 			                                                                                     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 		void* dataStaging = nullptr;
-		vkCheck(vkMapMemory(m_Device, stagingBufferMemory, 0, sizeof(uint16_t) * k_Indices.size(), 0, &dataStaging), "vkMapMemory");
-		memcpy(dataStaging, k_Indices.data(), sizeof(uint16_t) * k_Indices.size());
+		vkCheck(vkMapMemory(m_Device, stagingBufferMemory, 0, sizeof(uint16_t) * m_Indices.size(), 0, &dataStaging), "vkMapMemory");
+		memcpy(dataStaging, m_Indices.data(), sizeof(uint16_t) * m_Indices.size());
 		vkUnmapMemory(m_Device, stagingBufferMemory);
 
 		std::tie(m_IndexBuffer, m_IndexBufferMemory) = createBuffer(
