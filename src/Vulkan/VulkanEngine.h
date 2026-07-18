@@ -22,7 +22,22 @@ namespace lab::vk {
 			return { { { .location = 0, .binding = 0, .format = VK_FORMAT_R32G32B32_SFLOAT, .offset = offsetof(Vertex, Position) },
 				       { .location = 1, .binding = 0, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(Vertex, TexCoords) } } };
 		}
+
+		bool operator==(const Vertex& other) const {
+			return Position == other.Position && TexCoords == other.TexCoords;
+		}
 	};
+
+} // namespace lab::vk
+
+template <>
+struct std::hash<lab::vk::Vertex> {
+	size_t operator()(const lab::vk::Vertex& vertex) const noexcept {
+		return std::hash<math::Vector3>()(vertex.Position) ^ (std::hash<math::Vector2>()(vertex.TexCoords) << 1);
+	}
+};
+
+namespace lab::vk {
 
 	struct UniformBufferObject {
 		math::Mat4 Model;
@@ -40,11 +55,16 @@ namespace lab::vk {
 		constexpr static std::string_view k_ModelPath = "assets/models/viking/viking_room.obj";
 		constexpr static std::string_view k_TexturePath = "assets/textures/viking_room.png";
 		constexpr static int k_MaxFramesInFlight = 3;
+		constexpr static VkSampleCountFlagBits k_MaxMSAA = VK_SAMPLE_COUNT_8_BIT;
 		int m_FrameIndex = 0;
 		SDL_Window* m_WindowHandle = nullptr; // NOT THE OWNER
 
 		std::vector<Vertex> m_Vertices;
 		std::vector<uint32_t> m_Indices;
+		std::unordered_map<Vertex, uint32_t> m_UniqueVertices;
+
+		uint32_t m_MipLevels = 0;
+		VkSampleCountFlagBits m_MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
 		VkInstance m_Instance = VK_NULL_HANDLE;
 		VkDebugUtilsMessengerEXT m_DebugMessenger = VK_NULL_HANDLE;
@@ -84,6 +104,9 @@ namespace lab::vk {
 		std::vector<VkSemaphore> m_PresentCompleteSemaphores;
 		std::vector<VkSemaphore> m_RenderFinishedSemaphores;
 		std::vector<VkFence> m_DrawFences;
+		VkImage m_ColorImage = VK_NULL_HANDLE;
+		VkDeviceMemory m_ColorImageMemory = VK_NULL_HANDLE;
+		VkImageView m_ColorImageView = VK_NULL_HANDLE;
 
 		void createInstance();
 		static std::vector<VkLayerProperties> getAvailableLayers();
@@ -91,6 +114,7 @@ namespace lab::vk {
 		void createDebugMessenger();
 		void createSurface();
 		void pickPhysicalDevice();
+		VkSampleCountFlagBits getMaxUsableSampleCount();
 		void createLogicalDevice();
 		void createSwapchain(VkSwapchainKHR oldSwapchain);
 		[[nodiscard]] static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
@@ -98,17 +122,19 @@ namespace lab::vk {
 		[[nodiscard]] VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 		[[nodiscard]] static uint32_t chooseSwapMinImageCount(const VkSurfaceCapabilitiesKHR& surfaceCapabilities);
 		void createImageViews();
-		VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+		VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 		void createDescriptorSetLayout();
 		void createGraphicsPipeline();
 		[[nodiscard]] VkShaderModule createShaderModule(const std::vector<char>& code) const;
 		void createCommandPools();
+		void createColorResources();
 		void createDepthResources();
 		VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 		void createTextureImage();
-		std::pair<VkImage, VkDeviceMemory> createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
+		void generateMipmaps(VkCommandBuffer cmdBuffer, VkImage image, VkFormat format, int32_t width, int32_t height, uint32_t mipLevels);
+		std::pair<VkImage, VkDeviceMemory> createImage(uint32_t width, uint32_t height, uint32_t mipLevels,
+		                                               VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling,
 		                                               VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
-		void createTextureImageView();
 		void createTextureSampler();
 		void loadModel();
 		void createVertexBuffer();
@@ -126,7 +152,7 @@ namespace lab::vk {
 		void recordCommandBuffer(uint32_t frameIndex);
 		void transitionImageLayout(VkCommandBuffer buffer, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout,
 		                           VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask,
-		                           VkPipelineStageFlags2 dstStageMask, VkImageAspectFlags aspectFlags);
+		                           VkPipelineStageFlags2 dstStageMask, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 		void createSyncObjects();
 		void createRenderFinishedSemaphores();
 		void updateUniformBuffer(uint32_t currentImage);
