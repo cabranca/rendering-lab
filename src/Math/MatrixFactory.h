@@ -106,15 +106,17 @@ namespace math {
 		return res;
 	}
 
+	// fovy is in degrees (matching rotateX/Y/Z). Produces a right-handed projection with
+	// Vulkan clip-space depth in [0, 1] (the equivalent of GLM_FORCE_DEPTH_ZERO_TO_ONE).
 	inline Mat4 perspective(float fovy, float aspect, float nearZ, float farZ) noexcept {
-		float f = 1.0f / std::tan(fovy * 0.5f);
+		float f = 1.0f / std::tan(fovy * PI / 180.f * 0.5f);
 		float nf = nearZ - farZ;
 		Mat4 res = zeroMat();
 		res[0][0] = f / aspect;
 		res[1][1] = f;
-		res[2][2] = (farZ + nearZ) / nf;
+		res[2][2] = farZ / nf;
 		res[2][3] = -1.f;
-		res[3][2] = (2.f * farZ * nearZ) / nf;
+		res[3][2] = (farZ * nearZ) / nf;
 
 		return res;
 	}

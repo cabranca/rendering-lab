@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <algorithm>
+#include <functional>
 
 #include "Assertion.h"
 
@@ -159,3 +160,12 @@ namespace math {
 	}
 
 } // namespace math
+
+template <>
+struct std::hash<math::Vector2> {
+	size_t operator()(const math::Vector2& v) const noexcept {
+		size_t h1 = std::hash<float>()(v.x);
+		size_t h2 = std::hash<float>()(v.y);
+		return h1 ^ (h2 << 1);
+	}
+};
