@@ -86,6 +86,7 @@ namespace lab::vk {
 		createSurface();
 		pickPhysicalDevice();
 		createLogicalDevice();
+		m_Queue = VulkanQueue(m_Device, m_QueueFamilyIndex);
 	}
 
 	VulkanDevice::~VulkanDevice() {
@@ -120,6 +121,40 @@ namespace lab::vk {
     void VulkanDevice::waitIdle() {
         vkDeviceWaitIdle(m_Device);
     }
+
+	VkPhysicalDevice VulkanDevice::getPhysicalDevice() const {
+		return m_PhysicalDevice;
+	}
+
+	VkDevice VulkanDevice::getDevice() const {
+		return m_Device;
+	}
+
+	const VulkanQueue& VulkanDevice::getQueue() const {
+		return m_Queue;
+	}
+
+	VkSurfaceKHR VulkanDevice::getSurface() const {
+		return m_Surface;
+	}
+
+	VkPhysicalDeviceMemoryProperties VulkanDevice::getMemoryProperties() const {
+		return m_MemoryProperties;
+	}
+
+	VkSampleCountFlagBits VulkanDevice::getMSAA() const {
+		return m_MSAASamples;
+	}
+
+	uint32_t VulkanDevice::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const {
+		for (uint32_t i = 0; i < m_MemoryProperties.memoryTypeCount; i++) {
+			if ((typeFilter & (1 << i)) && (m_MemoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
+				return i;
+		}
+
+		CBK_FATAL("Failed to find suitable memory type!");
+		return UINT32_MAX;
+	}
 
     void VulkanDevice::createInstance() {
 		vkCheck(volkInitialize(), "volkInitialize");
@@ -379,17 +414,5 @@ namespace lab::vk {
 		vkCheck(vkCreateDevice(m_PhysicalDevice, &deviceCI, nullptr, &m_Device), "vkCreateDevice");
 		volkLoadDevice(m_Device);
 		CBK_DEBUG("Vulkan Logical Device created");
-
-		vkGetDeviceQueue(m_Device, m_QueueFamilyIndex, 0, &m_Queue);
-	}
-
-	uint32_t VulkanDevice::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const {
-		for (uint32_t i = 0; i < m_MemoryProperties.memoryTypeCount; i++) {
-			if ((typeFilter & (1 << i)) && (m_MemoryProperties.memoryTypes[i].propertyFlags & properties) == properties)
-				return i;
-		}
-
-		CBK_FATAL("Failed to find suitable memory type!");
-		return UINT32_MAX;
 	}
 } // namespace lab::vk

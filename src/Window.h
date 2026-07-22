@@ -13,10 +13,12 @@ namespace lab {
 
 		[[nodiscard]] SDL_Window* getWindowHandle() const;
 		[[nodiscard]] std::tuple<int, int> getWindowSize() const;
+		[[nodiscard]] std::string_view getWindowName() const;
 
 	  private:
 		SDL_Window* m_Window{ nullptr };
 		int m_Width{ 0 };
 		int m_Height{ 0 };
+		std::string_view m_Name;
 	};
 } // namespace lab

@@ -78,7 +78,14 @@ add_executable(rendering-lab src/Main.cpp
     src/stb_image.cpp
     src/Vulkan/VulkanEngine.cpp
     src/Vulkan/VulkanTexture.cpp
-    src/Utils.cpp)
+    src/Utils.cpp
+    src/Vulkan/VulkanDevice.cpp
+    src/Vulkan/VulkanImage.cpp
+    src/Vulkan/VulkanSwapchain.cpp
+    src/Vulkan/VulkanBuffer.cpp
+    src/Vulkan/VulkanQueue.cpp
+    src/Vulkan/VulkanCommandPool.cpp
+    src/Vulkan/VulkanCommands.cpp)
 
 # Compile the Slang shaders to SPIR-V before building the executable, so the
 # asset copy below picks up the generated .spv files

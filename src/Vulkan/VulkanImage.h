@@ -9,7 +9,7 @@ namespace lab::vk {
 	class VulkanImage {
 	  public:
 		VulkanImage() = default;
-		VulkanImage(const VulkanDevice& device, uint32_t width, uint32_t height, uint32_t mipLevels, bool useMultisampling, VkFormat format,
+		VulkanImage(const VulkanDevice* device, uint32_t width, uint32_t height, uint32_t mipLevels, bool useMultisampling, VkFormat format,
 		            VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImageAspectFlags aspectFlags);
 		~VulkanImage();
 		VulkanImage(const VulkanImage& other) = default;
@@ -17,6 +17,7 @@ namespace lab::vk {
 		VulkanImage(VulkanImage&& other) = default;
 		VulkanImage& operator=(VulkanImage&& other) noexcept;
 
+		[[nodiscard]] VkImage getImage() const;
 		[[nodiscard]] VkImageView getView() const;
 
 	  private:

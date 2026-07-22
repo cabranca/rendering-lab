@@ -8,7 +8,7 @@
 
 int main() {
 	lab::Window window;
-	lab::vk::VulkanEngine engine;
+	lab::vk::VulkanEngine engine(window);
 
 	lab::Logger::init();
 	lab::Logger::setLevel("debug");
