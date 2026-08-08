@@ -1,5 +1,9 @@
 #include "VulkanTexture.h"
 
+#include <format>
+#include <stdexcept>
+#include <utility>
+
 #include "stb_image.h"
 #include "Logger.h"
 #include "Utils.h"
@@ -8,17 +12,16 @@
 
 namespace lab::vk {
 
-	VulkanTexture::VulkanTexture(std::string_view path, const VulkanDevice* device) : m_Device(device->getDevice()) {
+	VulkanTexture::VulkanTexture(std::string_view path, const VulkanDevice& device) : m_Device(device.getDevice()) {
 		int width, height, channels;
 		stbi_uc* pixels = stbi_load(path.data(), &width, &height, &channels, STBI_rgb_alpha);
 		if (!pixels) {
-			CBK_ERROR("Couldn't load texture {}", path);
-			return;
+			throw std::runtime_error(std::format("Couldn't load texture {}", path));
 		}
 
 		m_MipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
 		auto textureSize = width * height * 4;
-		VulkanBuffer stagingBuffer(*device, textureSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VulkanBuffer stagingBuffer(device, textureSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 		stagingBuffer.setData(pixels);
@@ -30,23 +33,42 @@ namespace lab::vk {
 		                      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 
-		auto queue = device->getQueue();
+		const auto& queue = device.getQueue();
 		auto copyCmdBuffer = queue.beginSingleTimeCommands();
 		VulkanCommands::transitionImageLayout(copyCmdBuffer, m_Image.getImage(), VK_IMAGE_LAYOUT_UNDEFINED,
 		                                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_2_NONE, VK_ACCESS_2_TRANSFER_WRITE_BIT,
 		                                      VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
 		                                      VK_IMAGE_ASPECT_COLOR_BIT, m_MipLevels);
 		VulkanCommands::copyBufferToImage(copyCmdBuffer, stagingBuffer.getBuffer(), m_Image.getImage(), width, height);
-		generateMipmaps(copyCmdBuffer, m_Image.getImage(), VK_FORMAT_R8G8B8A8_SRGB, width, height, m_MipLevels, device->getPhysicalDevice());
+		generateMipmaps(copyCmdBuffer, m_Image.getImage(), VK_FORMAT_R8G8B8A8_SRGB, width, height, m_MipLevels, device.getPhysicalDevice());
 		queue.endSingleTimeCommands(copyCmdBuffer);
 
-		createTextureSampler(device->getPhysicalDevice());
+		createTextureSampler(device.getPhysicalDevice());
 
 		CBK_DEBUG("Texture created");
 	}
 
 	VulkanTexture::~VulkanTexture() {
-		vkDestroySampler(m_Device, m_Sampler, nullptr);
+		if (m_Sampler != VK_NULL_HANDLE)
+			vkDestroySampler(m_Device, m_Sampler, nullptr);
+	}
+
+	VulkanTexture::VulkanTexture(VulkanTexture&& other) noexcept
+	    : m_Device(other.m_Device),
+	      m_Image(std::move(other.m_Image)),
+	      m_Sampler(std::exchange(other.m_Sampler, VK_NULL_HANDLE)),
+	      m_MipLevels(other.m_MipLevels) {}
+
+	VulkanTexture& VulkanTexture::operator=(VulkanTexture&& other) noexcept {
+		if (this != &other) {
+			if (m_Sampler != VK_NULL_HANDLE)
+				vkDestroySampler(m_Device, m_Sampler, nullptr);
+			m_Device = other.m_Device;
+			m_Image = std::move(other.m_Image);
+			m_Sampler = std::exchange(other.m_Sampler, VK_NULL_HANDLE);
+			m_MipLevels = other.m_MipLevels;
+		}
+		return *this;
 	}
 
 	VkImageView VulkanTexture::getView() const {

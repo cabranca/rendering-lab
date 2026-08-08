@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include <vulkan/vulkan.h>
+#include <volk/volk.h>
 
 #include "VulkanDevice.h"
 #include "VulkanImage.h"

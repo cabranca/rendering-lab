@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
+#include <volk/volk.h>
 
 #include "VulkanDevice.h"
 
@@ -11,15 +11,15 @@ namespace lab::vk {
 		VulkanBuffer() = default;
 		VulkanBuffer(const VulkanDevice& device, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
 		~VulkanBuffer();
-		VulkanBuffer(const VulkanBuffer& other) = default;
-		VulkanBuffer& operator=(const VulkanBuffer& other) = default;
-		VulkanBuffer(VulkanBuffer&& other) = default;
-		VulkanBuffer& operator=(VulkanBuffer&& other) = default;
+		VulkanBuffer(const VulkanBuffer& other) = delete;
+		VulkanBuffer& operator=(const VulkanBuffer& other) = delete;
+		VulkanBuffer(VulkanBuffer&& other) noexcept;
+		VulkanBuffer& operator=(VulkanBuffer&& other) noexcept;
 
 		[[nodiscard]] VkBuffer getBuffer() const;
 
 		void setData(const void* src);
-		void map(void* memory);
+		[[nodiscard]] void* map();
 		void unmap();
 
 	  private:

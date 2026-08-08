@@ -1,6 +1,5 @@
 #include "VulkanQueue.h"
 
-#include "Logger.h"
 #include "Utils.h"
 
 namespace lab::vk {
@@ -9,37 +8,37 @@ namespace lab::vk {
         vkGetDeviceQueue(m_Device, m_FamilyIndex, 0, &m_Queue);
 
 		m_Pool = VulkanCommandPool(device, familyIndex);
-
-		VkCommandPoolCreateInfo poolCI {
-			.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-			.pNext = nullptr,
-			.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT,
-			.queueFamilyIndex = m_FamilyIndex
-		};
-		vkCheck(vkCreateCommandPool(m_Device, &poolCI, nullptr, &m_SingleTimePool), "vkCreateCommandPool");
+		m_SingleTimePool = VulkanCommandPool(device, familyIndex, true);
     }
-
-	VulkanQueue::~VulkanQueue() {
-		if (m_SingleTimePool != VK_NULL_HANDLE)
-			vkDestroyCommandPool(m_Device, m_SingleTimePool, nullptr);
-	}
 
 	uint32_t VulkanQueue::getQueueFamilyIndex() const {
 		return m_FamilyIndex;
 	}
 
+	std::vector<VkCommandBuffer> VulkanQueue::allocateCommandBuffers(uint32_t count) const {
+		return m_Pool.allocateBuffers(count);
+	}
+
 	void VulkanQueue::submitCommands(VkCommandBuffer buffer, VkFence fence, VkSemaphore waitSemaphore, VkSemaphore signalSemaphore,
 	                                 const std::vector<VkPipelineStageFlags>& waitDstStageMask) const {
-		VkSubmitInfo submitInfo{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-			                     .pNext = nullptr,
-			                     .waitSemaphoreCount = 1,
-			                     .pWaitSemaphores = &waitSemaphore,
-			                     .pWaitDstStageMask = waitDstStageMask.data(),
-			                     .commandBufferCount = 1,
-			                     .pCommandBuffers = &buffer,
-			                     .signalSemaphoreCount = 1,
-			                     .pSignalSemaphores = &signalSemaphore };
-		vkCheck(vkQueueSubmit(m_Queue, 1, &submitInfo, fence), "vkQueueSubmit");
+		VkSemaphoreSubmitInfo waitInfo{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+			                            .semaphore = waitSemaphore,
+			                            .stageMask = waitDstStageMask.empty()
+			                                             ? VK_PIPELINE_STAGE_2_NONE
+			                                             : static_cast<VkPipelineStageFlags2>(waitDstStageMask.front()) };
+		VkSemaphoreSubmitInfo signalInfo{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+			                              .semaphore = signalSemaphore,
+			                              .stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT };
+		VkCommandBufferSubmitInfo cmdInfo{ .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO, .commandBuffer = buffer };
+
+		VkSubmitInfo2 submitInfo{ .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+			                      .waitSemaphoreInfoCount = 1,
+			                      .pWaitSemaphoreInfos = &waitInfo,
+			                      .commandBufferInfoCount = 1,
+			                      .pCommandBufferInfos = &cmdInfo,
+			                      .signalSemaphoreInfoCount = 1,
+			                      .pSignalSemaphoreInfos = &signalInfo };
+		vkCheck(vkQueueSubmit2(m_Queue, 1, &submitInfo, fence), "vkQueueSubmit2");
 	}
 
 	VkResult VulkanQueue::present(VkSemaphore waitSemaphore, VkSwapchainKHR swapchain, uint32_t imageIndex) const {
@@ -56,16 +55,8 @@ namespace lab::vk {
 		return vkQueuePresentKHR(m_Queue, &presentInfo);
 	}
 
-	VkCommandBuffer VulkanQueue::beginSingleTimeCommands() {
-		VkCommandBuffer cmdBuffer = VK_NULL_HANDLE;
-		VkCommandBufferAllocateInfo cmdBufferAI {
-			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-			.pNext = nullptr,
-			.commandPool = m_SingleTimePool,
-			.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			.commandBufferCount = 1
-		};
-		vkCheck(vkAllocateCommandBuffers(m_Device, &cmdBufferAI, &cmdBuffer), "vkAllocateCommandBuffers");
+	VkCommandBuffer VulkanQueue::beginSingleTimeCommands() const {
+		VkCommandBuffer cmdBuffer = m_SingleTimePool.allocateBuffers(1).front();
 
 		VkCommandBufferBeginInfo cmdBufferBI {
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -77,7 +68,7 @@ namespace lab::vk {
 		return cmdBuffer;
 	}
 
-	void VulkanQueue::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
+	void VulkanQueue::endSingleTimeCommands(VkCommandBuffer commandBuffer) const {
 		vkCheck(vkEndCommandBuffer(commandBuffer), "vkEndCommandBuffer");
 
 		VkSubmitInfo submitInfo{

@@ -7,12 +7,12 @@ namespace lab::vk {
 	class VulkanTexture {
 	  public:
 		VulkanTexture() = default;
-		explicit VulkanTexture(std::string_view path, const VulkanDevice* device);
+		explicit VulkanTexture(std::string_view path, const VulkanDevice& device);
 		~VulkanTexture();
-		VulkanTexture(const VulkanTexture& other) = default;
-		VulkanTexture& operator=(const VulkanTexture& other) = default;
-		VulkanTexture(VulkanTexture&& other) = default;
-		VulkanTexture& operator=(VulkanTexture&& other) = default;
+		VulkanTexture(const VulkanTexture& other) = delete;
+		VulkanTexture& operator=(const VulkanTexture& other) = delete;
+		VulkanTexture(VulkanTexture&& other) noexcept;
+		VulkanTexture& operator=(VulkanTexture&& other) noexcept;
 
 		[[nodiscard]] VkImageView getView() const;
 		[[nodiscard]] VkSampler getSampler() const;

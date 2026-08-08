@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
+#include <volk/volk.h>
 
 #include "VulkanDevice.h"
 
@@ -9,12 +9,12 @@ namespace lab::vk {
 	class VulkanImage {
 	  public:
 		VulkanImage() = default;
-		VulkanImage(const VulkanDevice* device, uint32_t width, uint32_t height, uint32_t mipLevels, bool useMultisampling, VkFormat format,
+		VulkanImage(const VulkanDevice& device, uint32_t width, uint32_t height, uint32_t mipLevels, bool useMultisampling, VkFormat format,
 		            VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImageAspectFlags aspectFlags);
 		~VulkanImage();
-		VulkanImage(const VulkanImage& other) = default;
-		VulkanImage& operator=(const VulkanImage& other) = default;
-		VulkanImage(VulkanImage&& other) = default;
+		VulkanImage(const VulkanImage& other) = delete;
+		VulkanImage& operator=(const VulkanImage& other) = delete;
+		VulkanImage(VulkanImage&& other) noexcept;
 		VulkanImage& operator=(VulkanImage&& other) noexcept;
 
 		[[nodiscard]] VkImage getImage() const;

@@ -70,8 +70,10 @@ namespace lab::vk {
 		uint32_t imageIndex = 0;
 		VkResult result = vkAcquireNextImageKHR(m_Device->getDevice(), m_Swapchain, UINT64_MAX, presentCompleteSempahore, nullptr, &imageIndex);
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+			// The swapchain was rebuilt and no image/semaphore was acquired; signal the caller to skip
+			// this frame rather than draw into a stale index.
 			recreateSwapchain();
-			UINT32_MAX; // What about a recursive call? Can it cause stack overflow?
+			return UINT32_MAX;
 		}
 		// VK_SUBOPTIMAL_KHR still acquired an image and signalled the semaphore, so it has to be drawn and
 		// presented; the present below reports it again and recreates then.
@@ -208,12 +210,12 @@ namespace lab::vk {
 	}
 
 	void VulkanSwapchain::createRenderTargets() {
-		m_ColorImage = VulkanImage(m_Device, m_Extent.width, m_Extent.height, 1, true, m_SelectedFormat.format, VK_IMAGE_TILING_OPTIMAL,
+		m_ColorImage = VulkanImage(*m_Device, m_Extent.width, m_Extent.height, 1, true, m_SelectedFormat.format, VK_IMAGE_TILING_OPTIMAL,
 		                           VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 		                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 		m_DepthFormat = findSupportedFormat({ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
 		                                    VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT);
-		m_DepthImage = VulkanImage(m_Device, m_Extent.width, m_Extent.height, 1, false, m_DepthFormat, VK_IMAGE_TILING_OPTIMAL,
+		m_DepthImage = VulkanImage(*m_Device, m_Extent.width, m_Extent.height, 1, true, m_DepthFormat, VK_IMAGE_TILING_OPTIMAL,
 		                           VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 		                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
 	}

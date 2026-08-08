@@ -1,13 +1,15 @@
 #include "VulkanImage.h"
 
+#include <utility>
+
 #include "Utils.h"
 
 namespace lab::vk {
 
-	VulkanImage::VulkanImage(const VulkanDevice* device, uint32_t width, uint32_t height, uint32_t mipLevels, bool useMultisampling,
+	VulkanImage::VulkanImage(const VulkanDevice& device, uint32_t width, uint32_t height, uint32_t mipLevels, bool useMultisampling,
 	                         VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
 	                         VkImageAspectFlags aspectFlags)
-	    : m_Device(device->getDevice()) {
+	    : m_Device(device.getDevice()) {
 		VkImageCreateInfo imageCI{ .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 			                       .pNext = nullptr,
 			                       .flags = 0,
@@ -16,22 +18,18 @@ namespace lab::vk {
 			                       .extent = { .width = width, .height = height, .depth = 1 },
 			                       .mipLevels = mipLevels,
 			                       .arrayLayers = 1,
-			                       .samples = useMultisampling ? device->getMSAA() : VK_SAMPLE_COUNT_1_BIT,
+			                       .samples = useMultisampling ? device.getMSAA() : VK_SAMPLE_COUNT_1_BIT,
 			                       .tiling = tiling,
 			                       .usage = usage,
 			                       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-			                       .queueFamilyIndexCount = VK_QUEUE_FAMILY_IGNORED,
+			                       .queueFamilyIndexCount = 0,
 			                       .pQueueFamilyIndices = nullptr,
 			                       .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED };
 		vkCheck(vkCreateImage(m_Device, &imageCI, nullptr, &m_Image), "vkCreateImage");
 
 		VkMemoryRequirements memReq;
 		vkGetImageMemoryRequirements(m_Device, m_Image, &memReq);
-		VkMemoryAllocateInfo memAI{ .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-			                        .pNext = nullptr,
-			                        .allocationSize = memReq.size,
-			                        .memoryTypeIndex = device->findMemoryType(memReq.memoryTypeBits, properties) };
-		vkCheck(vkAllocateMemory(m_Device, &memAI, nullptr, &m_Memory), "vkAllocateMemory");
+		m_Memory = device.allocateMemory(memReq, properties);
 		vkCheck(vkBindImageMemory(m_Device, m_Image, m_Memory, 0), "vkBindImageMemory");
 
 		VkImageViewCreateInfo viewCI{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -52,6 +50,12 @@ namespace lab::vk {
 	VulkanImage::~VulkanImage() {
 		destroy();
 	}
+
+	VulkanImage::VulkanImage(VulkanImage&& other) noexcept
+	    : m_Device(other.m_Device),
+	      m_Image(std::exchange(other.m_Image, VK_NULL_HANDLE)),
+	      m_Memory(std::exchange(other.m_Memory, VK_NULL_HANDLE)),
+	      m_View(std::exchange(other.m_View, VK_NULL_HANDLE)) {}
 
 	VulkanImage& VulkanImage::operator=(VulkanImage&& other) noexcept {
 		if (this != &other) {
